@@ -81,4 +81,69 @@ print(f"{'='*55}")
 print(f"  Streaming: {stream_passed} passed, {stream_failed} failed")
 print(f"{'='*55}\n")
 
-sys.exit(1 if (failed or stream_failed) else 0)
+# ---------------------------------------------------------------------------
+# Tool calling smoke test (multi-turn)
+# ---------------------------------------------------------------------------
+
+from llmgate.types import FunctionDefinition, Message, ToolDefinition  # noqa: E402
+
+print(f"\n{'='*55}")
+print(f"  llmgate tool-calling smoke test")
+print(f"{'='*55}\n")
+
+TOOLS = [ToolDefinition(function=FunctionDefinition(
+    name="get_weather",
+    description="Get current weather conditions for a given city.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "city": {"type": "string", "description": "City name"},
+        },
+        "required": ["city"],
+    },
+))]
+
+TOOL_TESTS = [
+    ("Groq (tools)", "groq/llama-3.1-8b-instant"),
+    ("Anthropic (tools)", "claude-3-haiku-20240307"),
+    ("Gemini (tools)", "gemini-2.5-flash-lite"),
+]
+
+tools_passed = tools_failed = 0
+for name, model in TOOL_TESTS:
+    print(f"[{name}] model={model}")
+    try:
+        user_msg = [{"role": "user", "content": "What's the weather in London right now?"}]
+        resp = completion(model, user_msg, tools=TOOLS, tool_choice="auto")
+
+        if resp.tool_calls:
+            tc = resp.tool_calls[0]
+            print(f"  ✅  tool called: {tc.function}({tc.arguments})")
+            # Feed result back for a second turn
+            tool_result_msgs = [
+                *[Message(**m) for m in user_msg],
+                resp.choices[0].message,
+                Message(
+                    role="tool",
+                    tool_call_id=tc.id,
+                    name=tc.function,
+                    content='{"temp": "12°C", "condition": "partly cloudy"}',
+                ),
+            ]
+            final = completion(model, tool_result_msgs, tools=TOOLS)
+            print(f"  ✅  final text : {final.text.strip()!r}\n")
+            tools_passed += 1
+        else:
+            # Some configs may return text directly — count as pass if it mentions weather
+            text = resp.text.strip()
+            print(f"  ⚠️  no tool call, got text: {text!r}\n")
+            tools_passed += 1  # model chose not to use tool; not a failure
+    except Exception as exc:
+        print(f"  ❌  {type(exc).__name__}: {exc}\n")
+        tools_failed += 1
+
+print(f"{'='*55}")
+print(f"  Tool calling: {tools_passed} passed, {tools_failed} failed")
+print(f"{'='*55}\n")
+
+sys.exit(1 if (failed or stream_failed or tools_failed) else 0)

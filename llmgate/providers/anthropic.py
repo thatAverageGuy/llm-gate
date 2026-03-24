@@ -5,19 +5,23 @@ Anthropic provider — wraps the official ``anthropic`` Python SDK.
 
 Supported model prefixes: ``claude-``
 
-Anthropic's API has two peculiarities we handle here:
+Anthropic's API has several peculiarities we handle here:
 1. The ``system`` prompt is a top-level param, not a message.
 2. ``max_tokens`` is *required* by the Anthropic API (we default to 1024).
+3. Tools use ``input_schema`` instead of ``parameters``.
+4. Tool calls come back as ``tool_use`` content blocks.
+5. Tool results go back as special ``tool_result`` content in user messages.
 """
 from __future__ import annotations
 
 import os
+import uuid
 from typing import Any, AsyncIterator, ClassVar, Iterator
 
 from llmgate.base import BaseProvider
 from llmgate.exceptions import AuthError, ProviderAPIError, RateLimitError
 from llmgate.types import (
-    Choice, CompletionRequest, CompletionResponse, Message, StreamChunk, TokenUsage,
+    Choice, CompletionRequest, CompletionResponse, Message, StreamChunk, ToolCall, TokenUsage,
 )
 
 
@@ -45,35 +49,107 @@ class AnthropicProvider(BaseProvider):
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _build_params(self, request: CompletionRequest) -> dict[str, Any]:
-        """Split out system messages and build Anthropic-compatible params."""
-        system_parts = [m.content for m in request.messages if m.role == "system"]
-        non_system = [m.to_dict() for m in request.messages if m.role != "system"]
+    @staticmethod
+    def _build_messages(messages: list[Message]) -> tuple[str | None, list[dict[str, Any]]]:
+        """
+        Split system prompt and convert messages to Anthropic format.
 
+        Handles:
+          - role="tool"  → user message with tool_result content block
+          - role="assistant" with tool_calls → assistant message with tool_use blocks
+          - All others  → standard text messages
+        """
+        system_parts: list[str] = []
+        result: list[dict[str, Any]] = []
+
+        for msg in messages:
+            if msg.role == "system":
+                system_parts.append(msg.content or "")
+                continue
+
+            if msg.role == "tool":
+                # Tool result — sent as a user message with tool_result content block
+                result.append({
+                    "role": "user",
+                    "content": [{
+                        "type": "tool_result",
+                        "tool_use_id": msg.tool_call_id or "",
+                        "content": msg.content or "",
+                    }],
+                })
+                continue
+
+            if msg.role == "assistant" and msg.tool_calls:
+                # Assistant requesting tool calls — build mixed content blocks
+                content_blocks: list[dict[str, Any]] = []
+                if msg.content:
+                    content_blocks.append({"type": "text", "text": msg.content})
+                for tc in msg.tool_calls:
+                    content_blocks.append({
+                        "type": "tool_use",
+                        "id": tc.id,
+                        "name": tc.function,
+                        "input": tc.arguments,
+                    })
+                result.append({"role": "assistant", "content": content_blocks})
+                continue
+
+            # Standard user/assistant text message
+            result.append({"role": msg.role, "content": msg.content or ""})
+
+        system = "\n".join(system_parts) if system_parts else None
+        return system, result
+
+    def _build_params(self, request: CompletionRequest) -> dict[str, Any]:
+        system, messages = self._build_messages(request.messages)
         params: dict[str, Any] = {
             "model": request.model,
-            "messages": non_system,
+            "messages": messages,
             "max_tokens": request.max_tokens or 1024,
             **request.extra_kwargs,
         }
-        if system_parts:
-            params["system"] = "\n".join(system_parts)
+        if system:
+            params["system"] = system
         if request.temperature is not None:
             params["temperature"] = request.temperature
         if request.top_p is not None:
             params["top_p"] = request.top_p
+        if request.tools:
+            params["tools"] = [
+                {
+                    "name": t.function.name,
+                    "description": t.function.description,
+                    "input_schema": t.function.parameters,
+                }
+                for t in request.tools
+            ]
+            if request.tool_choice is not None:
+                # Normalise: "auto"→{"type":"auto"}, "none"→{"type":"none"}, dict pass-through
+                if isinstance(request.tool_choice, str):
+                    # "auto" | "none" | function name
+                    if request.tool_choice in ("auto", "none"):
+                        params["tool_choice"] = {"type": request.tool_choice}
+                    else:
+                        params["tool_choice"] = {"type": "tool", "name": request.tool_choice}
+                else:
+                    params["tool_choice"] = request.tool_choice
         return params
 
     def _map_response(self, raw: Any, model: str) -> CompletionResponse:
-        choices = [
-            Choice(
-                index=i,
-                message=Message(role="assistant", content=block.text),
-                finish_reason=raw.stop_reason,
-            )
-            for i, block in enumerate(raw.content)
-            if hasattr(block, "text")
-        ]
+        text_parts: list[str] = []
+        tool_calls: list[ToolCall] = []
+
+        for block in raw.content:
+            if getattr(block, "type", None) == "text":
+                text_parts.append(block.text)
+            elif getattr(block, "type", None) == "tool_use":
+                tool_calls.append(ToolCall(
+                    id=block.id,
+                    function=block.name,
+                    arguments=dict(block.input) if block.input else {},
+                ))
+
+        content = "\n".join(text_parts) if text_parts else None
         usage = TokenUsage(
             prompt_tokens=raw.usage.input_tokens if raw.usage else 0,
             completion_tokens=raw.usage.output_tokens if raw.usage else 0,
@@ -83,7 +159,17 @@ class AnthropicProvider(BaseProvider):
             id=raw.id,
             model=model,
             provider=self.name,
-            choices=choices,
+            choices=[
+                Choice(
+                    index=0,
+                    message=Message(
+                        role="assistant",
+                        content=content,
+                        tool_calls=tool_calls or None,
+                    ),
+                    finish_reason=raw.stop_reason,
+                )
+            ],
             usage=usage,
             raw=raw,
         )
@@ -117,8 +203,7 @@ class AnthropicProvider(BaseProvider):
         return self._map_response(raw, request.model)
 
     def stream(self, request: CompletionRequest) -> Iterator[StreamChunk]:
-        import uuid as _uuid  # noqa: PLC0415
-        chunk_id = str(_uuid.uuid4())
+        chunk_id = str(uuid.uuid4())
         try:
             with self._client.messages.stream(**self._build_params(request)) as s:
                 for text in s.text_stream:
@@ -132,8 +217,7 @@ class AnthropicProvider(BaseProvider):
             self._handle_error(exc)
 
     async def astream(self, request: CompletionRequest) -> AsyncIterator[StreamChunk]:
-        import uuid as _uuid  # noqa: PLC0415
-        chunk_id = str(_uuid.uuid4())
+        chunk_id = str(uuid.uuid4())
         try:
             async with self._async_client.messages.stream(**self._build_params(request)) as s:
                 async for text in s.text_stream:

@@ -7,13 +7,14 @@ Supported model prefixes: ``gpt-``, ``o1-``, ``o3-``, ``chatgpt-``
 """
 from __future__ import annotations
 
+import json
 import os
 from typing import Any, AsyncIterator, ClassVar, Iterator
 
 from llmgate.base import BaseProvider
 from llmgate.exceptions import AuthError, ProviderAPIError, RateLimitError
 from llmgate.types import (
-    Choice, CompletionRequest, CompletionResponse, Message, StreamChunk, TokenUsage,
+    Choice, CompletionRequest, CompletionResponse, Message, StreamChunk, ToolCall, TokenUsage,
 )
 
 
@@ -53,17 +54,47 @@ class OpenAIProvider(BaseProvider):
             params["temperature"] = request.temperature
         if request.top_p is not None:
             params["top_p"] = request.top_p
+        if request.tools:
+            params["tools"] = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": t.function.name,
+                        "description": t.function.description,
+                        "parameters": t.function.parameters,
+                    },
+                }
+                for t in request.tools
+            ]
+            if request.tool_choice is not None:
+                params["tool_choice"] = request.tool_choice
         return params
 
+    def _parse_tool_calls(self, raw_tool_calls: Any) -> list[ToolCall] | None:
+        if not raw_tool_calls:
+            return None
+        result = []
+        for tc in raw_tool_calls:
+            try:
+                args = json.loads(tc.function.arguments or "{}")
+            except (json.JSONDecodeError, AttributeError):
+                args = {}
+            result.append(ToolCall(id=tc.id, function=tc.function.name, arguments=args))
+        return result or None
+
     def _map_response(self, raw: Any, model: str) -> CompletionResponse:
-        choices = [
-            Choice(
+        choices = []
+        for c in raw.choices:
+            tool_calls = self._parse_tool_calls(getattr(c.message, "tool_calls", None))
+            choices.append(Choice(
                 index=c.index,
-                message=Message(role=c.message.role, content=c.message.content or ""),
+                message=Message(
+                    role=c.message.role,
+                    content=c.message.content or None,
+                    tool_calls=tool_calls,
+                ),
                 finish_reason=c.finish_reason,
-            )
-            for c in raw.choices
-        ]
+            ))
         usage = TokenUsage(
             prompt_tokens=raw.usage.prompt_tokens if raw.usage else 0,
             completion_tokens=raw.usage.completion_tokens if raw.usage else 0,

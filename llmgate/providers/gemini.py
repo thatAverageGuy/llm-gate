@@ -7,6 +7,11 @@ Supported model prefixes: ``gemini-``
 
 Uses the new ``google-genai`` package (google.genai), which replaced the
 deprecated ``google-generativeai`` (google.generativeai).
+
+Tool Calling:
+  - Tools sent as ``function_declarations`` inside a ``tools`` list.
+  - Model responses with function calls are in candidate content parts.
+  - Tool results are sent back as ``function_response`` parts in a user turn.
 """
 from __future__ import annotations
 
@@ -17,7 +22,7 @@ from typing import Any, AsyncIterator, ClassVar, Iterator
 from llmgate.base import BaseProvider
 from llmgate.exceptions import AuthError, ProviderAPIError, RateLimitError
 from llmgate.types import (
-    Choice, CompletionRequest, CompletionResponse, Message, StreamChunk, TokenUsage,
+    Choice, CompletionRequest, CompletionResponse, Message, StreamChunk, ToolCall, TokenUsage,
 )
 
 
@@ -53,6 +58,9 @@ class GeminiProvider(BaseProvider):
         """
         Convert llmgate messages to google-genai ``contents`` format.
 
+        Handles tool results (role="tool") by injecting function_response parts
+        into a user turn.
+
         Returns:
             (system_instruction, contents_list)
         """
@@ -62,10 +70,45 @@ class GeminiProvider(BaseProvider):
         for msg in messages:
             if msg.role == "system":
                 system_instruction = msg.content
-            elif msg.role == "user":
-                contents.append({"role": "user", "parts": [{"text": msg.content}]})
-            elif msg.role == "assistant":
-                contents.append({"role": "model", "parts": [{"text": msg.content}]})
+                continue
+
+            if msg.role == "user":
+                contents.append({"role": "user", "parts": [{"text": msg.content or ""}]})
+                continue
+
+            if msg.role == "assistant":
+                parts: list[dict[str, Any]] = []
+                if msg.content:
+                    parts.append({"text": msg.content})
+                if msg.tool_calls:
+                    for tc in msg.tool_calls:
+                        parts.append({
+                            "function_call": {
+                                "name": tc.function,
+                                "args": tc.arguments,
+                            }
+                        })
+                contents.append({"role": "model", "parts": parts})
+                continue
+
+            if msg.role == "tool":
+                # Tool result — sent as a user turn with function_response part
+                try:
+                    import json as _json  # noqa: PLC0415
+                    result_data = _json.loads(msg.content or "{}")
+                    if not isinstance(result_data, dict):
+                        result_data = {"result": result_data}
+                except Exception:  # noqa: BLE001
+                    result_data = {"result": msg.content or ""}
+                contents.append({
+                    "role": "user",
+                    "parts": [{
+                        "function_response": {
+                            "name": msg.name or "",
+                            "response": result_data,
+                        }
+                    }],
+                })
 
         return system_instruction, contents
 
@@ -77,11 +120,22 @@ class GeminiProvider(BaseProvider):
             config["temperature"] = request.temperature
         if request.top_p is not None:
             config["top_p"] = request.top_p
+        if request.tools:
+            config["tools"] = [{
+                "function_declarations": [
+                    {
+                        "name": t.function.name,
+                        "description": t.function.description,
+                        "parameters": t.function.parameters,
+                    }
+                    for t in request.tools
+                ]
+            }]
         config.update(request.extra_kwargs)
         return config
 
     def _map_response(self, raw: Any, model: str) -> CompletionResponse:
-        text = raw.text if hasattr(raw, "text") else ""
+        text = raw.text if hasattr(raw, "text") and raw.text else None
         usage_meta = getattr(raw, "usage_metadata", None)
         usage = TokenUsage(
             prompt_tokens=getattr(usage_meta, "prompt_token_count", 0) or 0,
@@ -89,8 +143,19 @@ class GeminiProvider(BaseProvider):
             total_tokens=getattr(usage_meta, "total_token_count", 0) or 0,
         )
         finish_reason = None
+        tool_calls: list[ToolCall] = []
+
         if raw.candidates:
-            finish_reason = str(raw.candidates[0].finish_reason)
+            cand = raw.candidates[0]
+            finish_reason = str(cand.finish_reason)
+            for part in getattr(cand.content, "parts", []):
+                fc = getattr(part, "function_call", None)
+                if fc is not None:
+                    tool_calls.append(ToolCall(
+                        id=str(uuid.uuid4()),
+                        function=fc.name,
+                        arguments=dict(fc.args) if fc.args else {},
+                    ))
 
         return CompletionResponse(
             id=str(uuid.uuid4()),
@@ -99,7 +164,11 @@ class GeminiProvider(BaseProvider):
             choices=[
                 Choice(
                     index=0,
-                    message=Message(role="assistant", content=text),
+                    message=Message(
+                        role="assistant",
+                        content=text,
+                        tool_calls=tool_calls or None,
+                    ),
                     finish_reason=finish_reason,
                 )
             ],
@@ -110,12 +179,17 @@ class GeminiProvider(BaseProvider):
     def _handle_error(self, exc: Exception) -> None:
         msg = str(exc)
         err_type = type(exc).__name__
-        # google.genai raises google.api_core.exceptions.*
         if err_type in ("Unauthenticated", "PermissionDenied"):
             raise AuthError(msg, provider=self.name) from exc
         if err_type == "ResourceExhausted":
             raise RateLimitError(msg, provider=self.name) from exc
         raise ProviderAPIError(msg, provider=self.name) from exc
+
+    def _make_full_config(self, request: CompletionRequest, system_instruction: str | None) -> dict[str, Any]:
+        config = self._build_config(request)
+        if system_instruction:
+            config["system_instruction"] = system_instruction
+        return config
 
     # ------------------------------------------------------------------
     # Public interface
@@ -123,16 +197,11 @@ class GeminiProvider(BaseProvider):
 
     def complete(self, request: CompletionRequest) -> CompletionResponse:
         system_instruction, contents = self._to_genai_contents(request.messages)
-        config = self._build_config(request)
-
         try:
             raw = self._client.models.generate_content(
                 model=request.model,
                 contents=contents,
-                config={
-                    **config,
-                    **({"system_instruction": system_instruction} if system_instruction else {}),
-                },
+                config=self._make_full_config(request, system_instruction),
             )
         except Exception as exc:  # noqa: BLE001
             self._handle_error(exc)
@@ -140,16 +209,11 @@ class GeminiProvider(BaseProvider):
 
     async def acomplete(self, request: CompletionRequest) -> CompletionResponse:
         system_instruction, contents = self._to_genai_contents(request.messages)
-        config = self._build_config(request)
-
         try:
             raw = await self._client.aio.models.generate_content(
                 model=request.model,
                 contents=contents,
-                config={
-                    **config,
-                    **({"system_instruction": system_instruction} if system_instruction else {}),
-                },
+                config=self._make_full_config(request, system_instruction),
             )
         except Exception as exc:  # noqa: BLE001
             self._handle_error(exc)
@@ -157,17 +221,12 @@ class GeminiProvider(BaseProvider):
 
     def stream(self, request: CompletionRequest) -> Iterator[StreamChunk]:
         system_instruction, contents = self._to_genai_contents(request.messages)
-        config = self._build_config(request)
         chunk_id = str(uuid.uuid4())
-        full_config = {
-            **config,
-            **({"system_instruction": system_instruction} if system_instruction else {}),
-        }
         try:
             for chunk in self._client.models.generate_content_stream(
                 model=request.model,
                 contents=contents,
-                config=full_config,
+                config=self._make_full_config(request, system_instruction),
             ):
                 text = getattr(chunk, "text", None) or ""
                 if text:
@@ -186,17 +245,12 @@ class GeminiProvider(BaseProvider):
 
     async def astream(self, request: CompletionRequest) -> AsyncIterator[StreamChunk]:
         system_instruction, contents = self._to_genai_contents(request.messages)
-        config = self._build_config(request)
         chunk_id = str(uuid.uuid4())
-        full_config = {
-            **config,
-            **({"system_instruction": system_instruction} if system_instruction else {}),
-        }
         try:
             async for chunk in await self._client.aio.models.generate_content_stream(
                 model=request.model,
                 contents=contents,
-                config=full_config,
+                config=self._make_full_config(request, system_instruction),
             ):
                 text = getattr(chunk, "text", None) or ""
                 if text:

@@ -28,7 +28,9 @@ from llmgate.providers.anthropic import AnthropicProvider
 from llmgate.providers.gemini import GeminiProvider
 from llmgate.providers.groq import GroqProvider
 from llmgate.providers.openai import OpenAIProvider
-from llmgate.types import CompletionRequest, CompletionResponse, Message, StreamChunk
+from llmgate.types import (
+    CompletionRequest, CompletionResponse, Message, StreamChunk, ToolDefinition,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -96,8 +98,16 @@ def _build_request(
     stream: bool,
     kwargs: dict[str, Any],
 ) -> CompletionRequest:
-    known_keys = {"max_tokens", "temperature", "top_p", "extra_kwargs"}
+    known_keys = {"max_tokens", "temperature", "top_p", "tools", "tool_choice", "extra_kwargs"}
     extra = {k: v for k, v in kwargs.items() if k not in known_keys}
+    # Normalise tools: accept list of ToolDefinition or plain dicts
+    raw_tools = kwargs.get("tools")
+    tools: list[ToolDefinition] | None = None
+    if raw_tools is not None:
+        tools = [
+            ToolDefinition(**t) if isinstance(t, dict) else t
+            for t in raw_tools
+        ]
     return CompletionRequest(
         model=model,
         messages=_normalise_messages(messages),
@@ -105,6 +115,8 @@ def _build_request(
         temperature=kwargs.get("temperature"),
         top_p=kwargs.get("top_p"),
         stream=stream,
+        tools=tools,
+        tool_choice=kwargs.get("tool_choice"),
         extra_kwargs=extra,
     )
 
