@@ -27,30 +27,60 @@ if TYPE_CHECKING:
 
 from llmgate.base import BaseProvider
 from llmgate.exceptions import ConfigError, ModelNotFoundError
+
+# Core providers (always available — hard deps)
 from llmgate.providers.anthropic import AnthropicProvider
 from llmgate.providers.gemini import GeminiProvider
 from llmgate.providers.groq import GroqProvider
 from llmgate.providers.openai import OpenAIProvider
+
 from llmgate.types import (
     CompletionRequest, CompletionResponse, Message, StreamChunk, ToolDefinition,
 )
 
 
 # ---------------------------------------------------------------------------
-# Registry
+# Registry — optional providers loaded lazily
 # ---------------------------------------------------------------------------
 
-#: Ordered list of provider *classes* used for model-prefix routing.
-_PROVIDER_CLASSES: list[type[BaseProvider]] = [
+#: (routing_prefix, module_path, class_name) for optional providers.
+#: Loaded lazily so a missing SDK never breaks `import llmgate`.
+_OPTIONAL_PROVIDERS: list[tuple[str, str, str]] = [
+    ("mistral/", "llmgate.providers.mistral", "MistralProvider"),
+    ("cohere/",  "llmgate.providers.cohere",  "CohereProvider"),
+    ("azure/",   "llmgate.providers.azure",   "AzureOpenAIProvider"),
+    ("bedrock/", "llmgate.providers.bedrock", "BedrockProvider"),
+    ("ollama/",  "llmgate.providers.ollama",  "OllamaProvider"),
+]
+
+_optional_provider_cache: dict[str, type[BaseProvider]] = {}
+
+
+def _get_optional_provider_class(prefix: str) -> type[BaseProvider] | None:
+    """Lazily import and return an optional provider class by routing prefix."""
+    if prefix in _optional_provider_cache:
+        return _optional_provider_cache[prefix]
+    for p, module_path, class_name in _OPTIONAL_PROVIDERS:
+        if p == prefix:
+            import importlib  # noqa: PLC0415
+            mod = importlib.import_module(module_path)
+            cls = getattr(mod, class_name)
+            _optional_provider_cache[prefix] = cls
+            return cls
+    return None
+
+
+#: Core provider classes (eager) — always installed
+_CORE_PROVIDER_CLASSES: list[type[BaseProvider]] = [
     OpenAIProvider,
     GeminiProvider,
     AnthropicProvider,
     GroqProvider,
 ]
 
-#: Map of provider name -> class for explicit ``provider=`` override.
+#: Map of provider name → class for explicit ``provider=`` override (core providers only at load time).
 _PROVIDER_NAME_MAP: dict[str, type[BaseProvider]] = {
-    cls.name: cls for cls in _PROVIDER_CLASSES  # type: ignore[attr-defined]
+    cls.name: cls for cls in _CORE_PROVIDER_CLASSES  # type: ignore[attr-defined]
 }
 
 #: Cache of instantiated providers keyed by (provider_name, api_key or None)
@@ -66,14 +96,40 @@ def _get_provider(
 ) -> BaseProvider:
     """Resolve and (lazily) instantiate a provider."""
     if provider_name:
+        # Try core map first, then optional providers by name
         cls = _PROVIDER_NAME_MAP.get(provider_name.lower())
         if cls is None:
+            # Try finding the optional provider by name
+            for _prefix, _module, _cls_name in _OPTIONAL_PROVIDERS:
+                _provider_name = _cls_name.lower().replace("provider", "").replace("openai", "azure").rstrip()
+                # Match by the known name keys
+                pass
+            # Build up full name map including optional ones on demand
+            for _pfx, _mod, _clsname in _OPTIONAL_PROVIDERS:
+                import importlib  # noqa: PLC0415
+                try:
+                    _mod_obj = importlib.import_module(_mod)
+                    _opt_cls = getattr(_mod_obj, _clsname)
+                    if _opt_cls.name == provider_name.lower():  # type: ignore[attr-defined]
+                        cls = _opt_cls
+                        break
+                except ImportError:
+                    continue
+        if cls is None:
+            available = list(_PROVIDER_NAME_MAP) + [p for _, _, p in _OPTIONAL_PROVIDERS]
             raise ConfigError(
                 f"Unknown provider '{provider_name}'. "
-                f"Available: {list(_PROVIDER_NAME_MAP)}"
+                f"Available: {available}"
             )
     else:
-        cls = next((c for c in _PROVIDER_CLASSES if c.supports(model)), None)  # type: ignore[attr-defined]
+        # Auto-detect: try core providers first
+        cls = next((c for c in _CORE_PROVIDER_CLASSES if c.supports(model)), None)  # type: ignore[attr-defined]
+        if cls is None:
+            # Try optional providers by prefix match
+            for prefix, module_path, class_name in _OPTIONAL_PROVIDERS:
+                if model.startswith(prefix):
+                    cls = _get_optional_provider_class(prefix)
+                    break
         if cls is None:
             raise ModelNotFoundError(model)
 

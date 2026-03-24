@@ -3,7 +3,8 @@ llmgate
 ~~~~~~~
 Lightweight, provider-agnostic LLM calling library.
 
-Supported providers:  OpenAI · Google Gemini · Anthropic · Groq
+Supported providers (core):   OpenAI · Google Gemini · Anthropic · Groq
+Optional providers:            Mistral · Cohere · Azure OpenAI · AWS Bedrock · Ollama
 
 Quick start::
 
@@ -12,18 +13,22 @@ Quick start::
     resp = completion("gpt-4o-mini", [{"role": "user", "content": "Hello!"}])
     print(resp.text)
 
+Optional providers::
+
+    # Install extras: pip install llmgate[mistral,cohere,bedrock,ollama]
+    resp = completion("mistral/mistral-large-latest", messages)
+    resp = completion("cohere/command-r-plus",        messages)
+    resp = completion("azure/my-deployment",          messages)
+    resp = completion("bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0", messages)
+    resp = completion("ollama/llama3.2",              messages)
+
 With middleware::
 
     from llmgate import LLMGate
     from llmgate.middleware import RetryMiddleware, LoggingMiddleware, CacheMiddleware
 
-    gate = LLMGate(middleware=[
-        RetryMiddleware(max_retries=3),
-        LoggingMiddleware(level="INFO"),
-        CacheMiddleware(ttl=300),
-    ])
+    gate = LLMGate(middleware=[RetryMiddleware(max_retries=3), CacheMiddleware(ttl=300)])
     resp = gate.completion("groq/llama-3.1-8b-instant", messages)
-
 """
 from __future__ import annotations
 
