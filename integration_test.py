@@ -49,4 +49,36 @@ for name, model in TESTS:
 print(f"{'='*55}")
 print(f"  Results: {passed} passed, {failed} failed")
 print(f"{'='*55}\n")
-sys.exit(1 if failed else 0)
+
+# ---------------------------------------------------------------------------
+# Streaming smoke test
+# ---------------------------------------------------------------------------
+
+print(f"\n{'='*55}")
+print(f"  llmgate streaming smoke test")
+print(f"{'='*55}\n")
+
+STREAM_TESTS = [
+    ("Groq (stream)",      "groq/llama-3.1-8b-instant"),
+    ("Anthropic (stream)", "claude-3-haiku-20240307"),
+    ("Gemini (stream)",    "gemini-2.5-flash-lite"),
+]
+
+stream_passed = stream_failed = 0
+for name, model in STREAM_TESTS:
+    print(f"[{name}] model={model}")
+    try:
+        chunks = list(completion(model, MESSAGES, max_tokens=30, temperature=0.0, stream=True))
+        full_text = "".join(c.delta for c in chunks)
+        print(f"  ✅  chunks    : {len(chunks)}")
+        print(f"      reassembled: {full_text.strip()!r}\n")
+        stream_passed += 1
+    except Exception as exc:
+        print(f"  ❌  {type(exc).__name__}: {exc}\n")
+        stream_failed += 1
+
+print(f"{'='*55}")
+print(f"  Streaming: {stream_passed} passed, {stream_failed} failed")
+print(f"{'='*55}\n")
+
+sys.exit(1 if (failed or stream_failed) else 0)

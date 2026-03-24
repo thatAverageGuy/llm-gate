@@ -157,7 +157,7 @@ class TestGeminiProvider:
     def test_message_conversion(self):
         with patch("llmgate.providers.gemini.GeminiProvider.__init__", return_value=None):
             from llmgate.providers.gemini import GeminiProvider
-            sys_instr, contents = GeminiProvider._to_gemini_contents([
+            sys_instr, contents = GeminiProvider._to_genai_contents([
                 Message(role="system", content="Be concise."),
                 Message(role="user", content="Hello"),
                 Message(role="assistant", content="Hi there"),

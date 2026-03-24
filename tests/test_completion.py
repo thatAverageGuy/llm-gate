@@ -2,14 +2,15 @@
 from __future__ import annotations
 
 import sys
+from typing import Iterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 import llmgate.completion  # ensure module is loaded into sys.modules
 from llmgate import acompletion, completion
-from llmgate.exceptions import ModelNotFoundError, StreamingNotSupported
-from llmgate.types import Choice, CompletionResponse, Message, TokenUsage
+from llmgate.exceptions import ModelNotFoundError
+from llmgate.types import Choice, CompletionResponse, Message, StreamChunk, TokenUsage
 
 
 def _clear_cache() -> None:
@@ -86,8 +87,18 @@ class TestCompletionRouting:
             completion("unknown-model-xyz", [{"role": "user", "content": "hi"}])
 
     def test_stream_raises_not_supported(self):
-        with pytest.raises(StreamingNotSupported):
-            completion("gpt-4o", [{"role": "user", "content": "hi"}], stream=True)
+        """stream=True with no error should return an Iterator."""
+        def _fake_stream():
+            yield StreamChunk(id="c", model="gpt-4o", provider="openai", delta="hi")
+
+        with patch("llmgate.providers.openai.OpenAIProvider.stream",
+                   return_value=_fake_stream()) as mock_stream, \
+             patch("llmgate.providers.openai.OpenAIProvider.__init__", return_value=None):
+            _clear_cache()
+            chunks = list(completion("gpt-4o", [{"role": "user", "content": "hi"}], stream=True))
+            assert len(chunks) == 1
+            assert isinstance(chunks[0], StreamChunk)
+            assert chunks[0].delta == "hi"
 
     def test_explicit_provider_override(self):
         with patch("llmgate.providers.groq.GroqProvider.complete") as mock_complete, \
@@ -117,9 +128,22 @@ class TestACompletion:
             assert resp.provider == "openai"
 
     @pytest.mark.asyncio
-    async def test_async_stream_raises(self):
-        with pytest.raises(StreamingNotSupported):
-            await acompletion("gpt-4o", [{"role": "user", "content": "hi"}], stream=True)
+    async def test_async_stream_returns_iterator(self):
+        """acompletion(stream=True) should return an AsyncIterator of StreamChunk."""
+        async def _fake_astream():
+            yield StreamChunk(id="c", model="gpt-4o", provider="openai", delta="hello")
+
+        with patch("llmgate.providers.openai.OpenAIProvider.astream",
+                   return_value=_fake_astream()) as mock_astream, \
+             patch("llmgate.providers.openai.OpenAIProvider.__init__", return_value=None):
+            _clear_cache()
+            chunks = []
+            async for chunk in await acompletion(
+                "gpt-4o", [{"role": "user", "content": "hi"}], stream=True
+            ):
+                chunks.append(chunk)
+            assert len(chunks) == 1
+            assert chunks[0].delta == "hello"
 
 
 # ---------------------------------------------------------------------------

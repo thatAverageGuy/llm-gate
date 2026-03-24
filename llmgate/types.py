@@ -92,22 +92,21 @@ class CompletionResponse(BaseModel):
         return self.choices[0].message.content if self.choices else ""
 
 
-# ---------------------------------------------------------------------------
-# Streaming stub (v0.1 — not yet implemented)
-# ---------------------------------------------------------------------------
-
-
 class StreamChunk(BaseModel):
     """
-    A single streamed chunk.
+    A single streamed delta chunk, yielded by ``completion(..., stream=True)``
+    and ``acompletion(..., stream=True)``.
 
-    This type is a forward-compatibility stub.  Streaming is not yet
-    implemented; it will be added in a future release.
+    Iterate over these to build the full response incrementally::
+
+        for chunk in completion("gpt-4o-mini", messages, stream=True):
+            print(chunk.delta, end="", flush=True)
     """
 
     id: str
     model: str
     provider: str
-    delta: str
-    finish_reason: Optional[str] = None
+    delta: str                              # text fragment for this chunk
+    finish_reason: Optional[str] = None     # set on the final chunk
     index: int = 0
+    usage: Optional[TokenUsage] = None      # populated on the last chunk by some providers

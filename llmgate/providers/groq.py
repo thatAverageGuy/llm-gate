@@ -13,11 +13,13 @@ The prefix is stripped before the model name is sent to the Groq API.
 from __future__ import annotations
 
 import os
-from typing import Any, ClassVar
+from typing import Any, AsyncIterator, ClassVar, Iterator
 
 from llmgate.base import BaseProvider
 from llmgate.exceptions import AuthError, ProviderAPIError, RateLimitError
-from llmgate.types import Choice, CompletionRequest, CompletionResponse, Message, TokenUsage
+from llmgate.types import (
+    Choice, CompletionRequest, CompletionResponse, Message, StreamChunk, TokenUsage,
+)
 
 
 class GroqProvider(BaseProvider):
@@ -112,3 +114,47 @@ class GroqProvider(BaseProvider):
         except Exception as exc:  # noqa: BLE001
             self._handle_error(exc)
         return self._map_response(raw, request.model)
+
+    def stream(self, request: CompletionRequest) -> Iterator[StreamChunk]:
+        try:
+            sdk_stream = self._client.chat.completions.create(
+                **self._build_params(request), stream=True
+            )
+        except Exception as exc:  # noqa: BLE001
+            self._handle_error(exc)
+        for chunk in sdk_stream:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta.content
+            finish_reason = chunk.choices[0].finish_reason
+            if delta:
+                yield StreamChunk(
+                    id=chunk.id,
+                    model=request.model,
+                    provider=self.name,
+                    delta=delta,
+                    finish_reason=finish_reason,
+                    index=chunk.choices[0].index,
+                )
+
+    async def astream(self, request: CompletionRequest) -> AsyncIterator[StreamChunk]:
+        try:
+            sdk_stream = await self._async_client.chat.completions.create(
+                **self._build_params(request), stream=True
+            )
+        except Exception as exc:  # noqa: BLE001
+            self._handle_error(exc)
+        async for chunk in sdk_stream:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta.content
+            finish_reason = chunk.choices[0].finish_reason
+            if delta:
+                yield StreamChunk(
+                    id=chunk.id,
+                    model=request.model,
+                    provider=self.name,
+                    delta=delta,
+                    finish_reason=finish_reason,
+                    index=chunk.choices[0].index,
+                )

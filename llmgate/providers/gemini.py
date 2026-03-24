@@ -12,11 +12,13 @@ from __future__ import annotations
 
 import os
 import uuid
-from typing import Any, ClassVar
+from typing import Any, AsyncIterator, ClassVar, Iterator
 
 from llmgate.base import BaseProvider
 from llmgate.exceptions import AuthError, ProviderAPIError, RateLimitError
-from llmgate.types import Choice, CompletionRequest, CompletionResponse, Message, TokenUsage
+from llmgate.types import (
+    Choice, CompletionRequest, CompletionResponse, Message, StreamChunk, TokenUsage,
+)
 
 
 class GeminiProvider(BaseProvider):
@@ -152,3 +154,61 @@ class GeminiProvider(BaseProvider):
         except Exception as exc:  # noqa: BLE001
             self._handle_error(exc)
         return self._map_response(raw, request.model)
+
+    def stream(self, request: CompletionRequest) -> Iterator[StreamChunk]:
+        system_instruction, contents = self._to_genai_contents(request.messages)
+        config = self._build_config(request)
+        chunk_id = str(uuid.uuid4())
+        full_config = {
+            **config,
+            **({"system_instruction": system_instruction} if system_instruction else {}),
+        }
+        try:
+            for chunk in self._client.models.generate_content_stream(
+                model=request.model,
+                contents=contents,
+                config=full_config,
+            ):
+                text = getattr(chunk, "text", None) or ""
+                if text:
+                    finish_reason = None
+                    if getattr(chunk, "candidates", None):
+                        finish_reason = str(chunk.candidates[0].finish_reason)
+                    yield StreamChunk(
+                        id=chunk_id,
+                        model=request.model,
+                        provider=self.name,
+                        delta=text,
+                        finish_reason=finish_reason,
+                    )
+        except Exception as exc:  # noqa: BLE001
+            self._handle_error(exc)
+
+    async def astream(self, request: CompletionRequest) -> AsyncIterator[StreamChunk]:
+        system_instruction, contents = self._to_genai_contents(request.messages)
+        config = self._build_config(request)
+        chunk_id = str(uuid.uuid4())
+        full_config = {
+            **config,
+            **({"system_instruction": system_instruction} if system_instruction else {}),
+        }
+        try:
+            async for chunk in await self._client.aio.models.generate_content_stream(
+                model=request.model,
+                contents=contents,
+                config=full_config,
+            ):
+                text = getattr(chunk, "text", None) or ""
+                if text:
+                    finish_reason = None
+                    if getattr(chunk, "candidates", None):
+                        finish_reason = str(chunk.candidates[0].finish_reason)
+                    yield StreamChunk(
+                        id=chunk_id,
+                        model=request.model,
+                        provider=self.name,
+                        delta=text,
+                        finish_reason=finish_reason,
+                    )
+        except Exception as exc:  # noqa: BLE001
+            self._handle_error(exc)

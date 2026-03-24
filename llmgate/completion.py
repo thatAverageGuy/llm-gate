@@ -4,8 +4,10 @@ llmgate.completion
 Main entry points for llmgate.
 
 Public API:
-    completion(model, messages, **kwargs)   -> CompletionResponse
-    acompletion(model, messages, **kwargs)  -> CompletionResponse (async)
+    completion(model, messages, **kwargs)   -> CompletionResponse  (stream=False)
+                                           -> Iterator[StreamChunk] (stream=True)
+    acompletion(model, messages, **kwargs)  -> CompletionResponse  (stream=False, async)
+                                           -> AsyncIterator[StreamChunk] (stream=True, async)
 
 Provider resolution order:
 1. If ``provider`` kwarg is given, use that provider by name.
@@ -18,15 +20,15 @@ re-created for every call.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, AsyncIterator, Iterator, Literal, Union, overload
 
 from llmgate.base import BaseProvider
-from llmgate.exceptions import ConfigError, ModelNotFoundError, StreamingNotSupported
+from llmgate.exceptions import ConfigError, ModelNotFoundError
 from llmgate.providers.anthropic import AnthropicProvider
 from llmgate.providers.gemini import GeminiProvider
 from llmgate.providers.groq import GroqProvider
 from llmgate.providers.openai import OpenAIProvider
-from llmgate.types import CompletionRequest, CompletionResponse, Message
+from llmgate.types import CompletionRequest, CompletionResponse, Message, StreamChunk
 
 
 # ---------------------------------------------------------------------------
@@ -108,19 +110,45 @@ def _build_request(
 
 
 # ---------------------------------------------------------------------------
-# Public API
+# Public API — completion()
 # ---------------------------------------------------------------------------
+
+_MsgList = list[Union[dict[str, str], Message]]
+
+
+@overload
+def completion(
+    model: str,
+    messages: _MsgList,
+    *,
+    provider: str | None = ...,
+    api_key: str | None = ...,
+    stream: Literal[True],
+    **kwargs: Any,
+) -> Iterator[StreamChunk]: ...
+
+
+@overload
+def completion(
+    model: str,
+    messages: _MsgList,
+    *,
+    provider: str | None = ...,
+    api_key: str | None = ...,
+    stream: Literal[False] = ...,
+    **kwargs: Any,
+) -> CompletionResponse: ...
 
 
 def completion(
     model: str,
-    messages: list[dict[str, str] | Message],
+    messages: _MsgList,
     *,
     provider: str | None = None,
     api_key: str | None = None,
     stream: bool = False,
     **kwargs: Any,
-) -> CompletionResponse:
+) -> CompletionResponse | Iterator[StreamChunk]:
     """
     Perform a synchronous chat completion.
 
@@ -132,43 +160,74 @@ def completion(
                   ``"anthropic"``, ``"groq"``). Optional — auto-detected otherwise.
         api_key:  Override the API key for this call. Defaults to the relevant
                   environment variable.
-        stream:   Not yet supported — raises ``StreamingNotSupported``.
+        stream:   If True, returns an ``Iterator[StreamChunk]`` instead of a
+                  ``CompletionResponse``. Iterate the result to receive deltas.
         **kwargs: Extra parameters forwarded to the provider
                   (``max_tokens``, ``temperature``, ``top_p``, etc.).
 
     Returns:
-        :class:`~llmgate.types.CompletionResponse`
+        :class:`~llmgate.types.CompletionResponse` when ``stream=False`` (default).
+        ``Iterator[StreamChunk]`` when ``stream=True``.
 
     Raises:
         :class:`~llmgate.exceptions.ModelNotFoundError`: Unknown model.
-        :class:`~llmgate.exceptions.StreamingNotSupported`: ``stream=True``.
         :class:`~llmgate.exceptions.ProviderError`: Provider returned an error.
     """
-    if stream:
-        raise StreamingNotSupported()
-
     provider_inst = _get_provider(model, provider, api_key)
     request = _build_request(model, messages, stream, kwargs)
+
+    if stream:
+        return provider_inst.stream(request)
     return provider_inst.complete(request)
+
+
+# ---------------------------------------------------------------------------
+# Public API — acompletion()
+# ---------------------------------------------------------------------------
+
+
+@overload
+async def acompletion(
+    model: str,
+    messages: _MsgList,
+    *,
+    provider: str | None = ...,
+    api_key: str | None = ...,
+    stream: Literal[True],
+    **kwargs: Any,
+) -> AsyncIterator[StreamChunk]: ...
+
+
+@overload
+async def acompletion(
+    model: str,
+    messages: _MsgList,
+    *,
+    provider: str | None = ...,
+    api_key: str | None = ...,
+    stream: Literal[False] = ...,
+    **kwargs: Any,
+) -> CompletionResponse: ...
 
 
 async def acompletion(
     model: str,
-    messages: list[dict[str, str] | Message],
+    messages: _MsgList,
     *,
     provider: str | None = None,
     api_key: str | None = None,
     stream: bool = False,
     **kwargs: Any,
-) -> CompletionResponse:
+) -> CompletionResponse | AsyncIterator[StreamChunk]:
     """
     Perform an asynchronous chat completion.
 
     Same signature as :func:`completion` but returns a coroutine.
+    When ``stream=True``, returns an ``AsyncIterator[StreamChunk]``.
     """
-    if stream:
-        raise StreamingNotSupported()
-
     provider_inst = _get_provider(model, provider, api_key)
     request = _build_request(model, messages, stream, kwargs)
+
+    if stream:
+        return provider_inst.astream(request)
     return await provider_inst.acomplete(request)

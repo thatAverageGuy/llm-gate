@@ -3,9 +3,11 @@ llmgate.base
 ~~~~~~~~~~~~
 Abstract base class for all llmgate providers.
 
-Every provider must implement the two abstract methods:
+Every provider must implement all four abstract methods:
     - ``complete(request)``  — synchronous completion
     - ``acomplete(request)`` — asynchronous completion
+    - ``stream(request)``    — synchronous streaming (yields StreamChunk)
+    - ``astream(request)``   — asynchronous streaming (yields StreamChunk)
 
 The ``supports(model)`` classmethod is used by the provider registry to route
 a model string to the right provider without instantiating it.
@@ -13,9 +15,9 @@ a model string to the right provider without instantiating it.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import ClassVar
+from typing import AsyncIterator, ClassVar, Iterator
 
-from llmgate.types import CompletionRequest, CompletionResponse
+from llmgate.types import CompletionRequest, CompletionResponse, StreamChunk
 
 
 class BaseProvider(ABC):
@@ -53,6 +55,14 @@ class BaseProvider(ABC):
     @abstractmethod
     async def acomplete(self, request: CompletionRequest) -> CompletionResponse:
         """Perform an asynchronous chat completion."""
+
+    @abstractmethod
+    def stream(self, request: CompletionRequest) -> Iterator[StreamChunk]:
+        """Yield streamed chunks synchronously."""
+
+    @abstractmethod
+    async def astream(self, request: CompletionRequest) -> AsyncIterator[StreamChunk]:
+        """Yield streamed chunks asynchronously."""
 
     # -----------------------------------------------------------------------
     # Shared helpers for subclasses
