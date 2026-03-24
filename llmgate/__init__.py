@@ -12,12 +12,17 @@ Quick start::
     resp = completion("gpt-4o-mini", [{"role": "user", "content": "Hello!"}])
     print(resp.text)
 
-Async::
+With middleware::
 
-    from llmgate import acompletion
+    from llmgate import LLMGate
+    from llmgate.middleware import RetryMiddleware, LoggingMiddleware, CacheMiddleware
 
-    resp = await acompletion("gemini-1.5-flash", [{"role": "user", "content": "Hi"}])
-    print(resp.text)
+    gate = LLMGate(middleware=[
+        RetryMiddleware(max_retries=3),
+        LoggingMiddleware(level="INFO"),
+        CacheMiddleware(ttl=300),
+    ])
+    resp = gate.completion("groq/llama-3.1-8b-instant", messages)
 
 """
 from __future__ import annotations
@@ -33,20 +38,39 @@ from llmgate.exceptions import (
     RateLimitError,
     StreamingNotSupported,
 )
+from llmgate.gate import LLMGate
+from llmgate.middleware import (
+    BaseMiddleware,
+    CacheMiddleware,
+    LoggingMiddleware,
+    RateLimitMiddleware,
+    RetryMiddleware,
+)
 from llmgate.types import (
     Choice,
     CompletionRequest,
     CompletionResponse,
+    FunctionDefinition,
     Message,
     StreamChunk,
     TokenUsage,
+    ToolCall,
+    ToolDefinition,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = [
     # Core API
     "completion",
     "acompletion",
+    # Client
+    "LLMGate",
+    # Middleware
+    "BaseMiddleware",
+    "LoggingMiddleware",
+    "RetryMiddleware",
+    "CacheMiddleware",
+    "RateLimitMiddleware",
     # Types
     "Message",
     "CompletionRequest",
@@ -54,6 +78,9 @@ __all__ = [
     "Choice",
     "TokenUsage",
     "StreamChunk",
+    "FunctionDefinition",
+    "ToolCall",
+    "ToolDefinition",
     # Exceptions
     "LLMGateError",
     "ProviderError",

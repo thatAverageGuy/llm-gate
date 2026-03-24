@@ -20,7 +20,10 @@ re-created for every call.
 """
 from __future__ import annotations
 
-from typing import Any, AsyncIterator, Iterator, Literal, Union, overload
+from typing import TYPE_CHECKING, Any, AsyncIterator, Iterator, Literal, Union, overload
+
+if TYPE_CHECKING:
+    from llmgate.middleware.base import BaseMiddleware
 
 from llmgate.base import BaseProvider
 from llmgate.exceptions import ConfigError, ModelNotFoundError
@@ -80,6 +83,10 @@ def _get_provider(
     return _provider_cache[cache_key]
 
 
+# Alias used by LLMGate client
+_get_or_create_provider = _get_provider
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -98,7 +105,8 @@ def _build_request(
     stream: bool,
     kwargs: dict[str, Any],
 ) -> CompletionRequest:
-    known_keys = {"max_tokens", "temperature", "top_p", "tools", "tool_choice", "extra_kwargs"}
+    known_keys = {"max_tokens", "temperature", "top_p", "tools", "tool_choice",
+                  "extra_kwargs", "middleware", "provider", "api_key"}
     extra = {k: v for k, v in kwargs.items() if k not in known_keys}
     # Normalise tools: accept list of ToolDefinition or plain dicts
     raw_tools = kwargs.get("tools")
@@ -136,6 +144,7 @@ def completion(
     provider: str | None = ...,
     api_key: str | None = ...,
     stream: Literal[True],
+    middleware: list[BaseMiddleware] | None = ...,
     **kwargs: Any,
 ) -> Iterator[StreamChunk]: ...
 
@@ -148,6 +157,7 @@ def completion(
     provider: str | None = ...,
     api_key: str | None = ...,
     stream: Literal[False] = ...,
+    middleware: list[BaseMiddleware] | None = ...,
     **kwargs: Any,
 ) -> CompletionResponse: ...
 
@@ -159,6 +169,7 @@ def completion(
     provider: str | None = None,
     api_key: str | None = None,
     stream: bool = False,
+    middleware: list[BaseMiddleware] | None = None,
     **kwargs: Any,
 ) -> CompletionResponse | Iterator[StreamChunk]:
     """
@@ -188,6 +199,16 @@ def completion(
     provider_inst = _get_provider(model, provider, api_key)
     request = _build_request(model, messages, stream, kwargs)
 
+    if middleware:
+        from llmgate.gate import _build_sync_chain  # noqa: PLC0415
+        def _inner(req: CompletionRequest) -> CompletionResponse:
+            return provider_inst.complete(req)
+        if stream:
+            _mw_chain = _inner  # streaming ignores middleware for now
+            return provider_inst.stream(request)
+        chain = _build_sync_chain(middleware, _inner)
+        return chain(request)
+
     if stream:
         return provider_inst.stream(request)
     return provider_inst.complete(request)
@@ -206,6 +227,7 @@ async def acompletion(
     provider: str | None = ...,
     api_key: str | None = ...,
     stream: Literal[True],
+    middleware: list[BaseMiddleware] | None = ...,
     **kwargs: Any,
 ) -> AsyncIterator[StreamChunk]: ...
 
@@ -218,6 +240,7 @@ async def acompletion(
     provider: str | None = ...,
     api_key: str | None = ...,
     stream: Literal[False] = ...,
+    middleware: list[BaseMiddleware] | None = ...,
     **kwargs: Any,
 ) -> CompletionResponse: ...
 
@@ -229,6 +252,7 @@ async def acompletion(
     provider: str | None = None,
     api_key: str | None = None,
     stream: bool = False,
+    middleware: list[BaseMiddleware] | None = None,
     **kwargs: Any,
 ) -> CompletionResponse | AsyncIterator[StreamChunk]:
     """
@@ -239,6 +263,15 @@ async def acompletion(
     """
     provider_inst = _get_provider(model, provider, api_key)
     request = _build_request(model, messages, stream, kwargs)
+
+    if middleware:
+        from llmgate.gate import _build_async_chain  # noqa: PLC0415
+        async def _inner(req: CompletionRequest) -> CompletionResponse:
+            return await provider_inst.acomplete(req)
+        if stream:
+            return provider_inst.astream(request)
+        chain = _build_async_chain(middleware, _inner)
+        return await chain(request)
 
     if stream:
         return provider_inst.astream(request)

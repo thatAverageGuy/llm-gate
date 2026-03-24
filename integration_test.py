@@ -146,4 +146,49 @@ print(f"{'='*55}")
 print(f"  Tool calling: {tools_passed} passed, {tools_failed} failed")
 print(f"{'='*55}\n")
 
-sys.exit(1 if (failed or stream_failed or tools_failed) else 0)
+print(f"{'='*55}")
+print(f"  Tool calling: {tools_passed} passed, {tools_failed} failed")
+print(f"{'='*55}\n")
+
+# ---------------------------------------------------------------------------
+# Middleware smoke test (LLMGate client)
+# ---------------------------------------------------------------------------
+import logging  # noqa: E402
+from llmgate import LLMGate  # noqa: E402
+from llmgate.middleware import CacheMiddleware, LoggingMiddleware, RetryMiddleware  # noqa: E402
+
+logging.basicConfig(level=logging.DEBUG)
+
+print(f"\n{'='*55}")
+print(f"  llmgate middleware smoke test")
+print(f"{'='*55}\n")
+
+mw_passed = mw_failed = 0
+SIMPLE_MSGS = [{"role": "user", "content": "Say exactly: 'middleware works!' and nothing else."}]
+
+for name, model in [("Groq", "groq/llama-3.1-8b-instant"), ("Gemini", "gemini-2.5-flash-lite")]:
+    print(f"[{name}] testing retry + logging + cache")
+    try:
+        gate = LLMGate(middleware=[
+            RetryMiddleware(max_retries=2),
+            LoggingMiddleware(level="DEBUG", mask_content=True),
+            CacheMiddleware(ttl=60),
+        ])
+        r1 = gate.completion(model, SIMPLE_MSGS, max_tokens=20, temperature=0.0)
+        r2 = gate.completion(model, SIMPLE_MSGS, max_tokens=20, temperature=0.0)
+        cache_hit = r1 is r2
+        print(f"  ✅  r1 text : {r1.text.strip()!r}")
+        print(f"  ✅  cache   : {'HIT (r2 is r1)' if cache_hit else 'MISS — check TTL'}")
+        if not cache_hit:
+            raise AssertionError("Cache miss on identical second call!")
+        print()
+        mw_passed += 1
+    except Exception as exc:
+        print(f"  ❌  {type(exc).__name__}: {exc}\n")
+        mw_failed += 1
+
+print(f"{'='*55}")
+print(f"  Middleware: {mw_passed} passed, {mw_failed} failed")
+print(f"{'='*55}\n")
+
+sys.exit(1 if (failed or stream_failed or tools_failed or mw_failed) else 0)
