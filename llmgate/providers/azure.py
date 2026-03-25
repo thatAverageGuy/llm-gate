@@ -112,6 +112,17 @@ class AzureOpenAIProvider(BaseProvider):
             ]
             if request.tool_choice is not None:
                 params["tool_choice"] = request.tool_choice
+        if request.response_format is not None:
+            from llmgate.structured import get_json_schema  # noqa: PLC0415
+            schema = get_json_schema(request.response_format)
+            params["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": request.response_format.__name__.lower(),
+                    "strict": True,
+                    "schema": schema,
+                },
+            }
         return params
 
     def _parse_tool_calls(self, raw_tool_calls: Any) -> list[ToolCall]:
@@ -130,7 +141,7 @@ class AzureOpenAIProvider(BaseProvider):
             ))
         return tool_calls
 
-    def _map_response(self, raw: Any, model: str) -> CompletionResponse:
+    def _map_response(self, raw: Any, model: str, response_format: Any = None) -> CompletionResponse:
         choices = []
         for c in raw.choices:
             msg = c.message
@@ -145,6 +156,10 @@ class AzureOpenAIProvider(BaseProvider):
                 finish_reason=c.finish_reason or "stop",
             ))
         u = raw.usage
+        parsed = None
+        if response_format is not None and choices:
+            from llmgate.structured import validate_parsed  # noqa: PLC0415
+            parsed = validate_parsed(choices[0].message.content, response_format)
         return CompletionResponse(
             id=raw.id,
             model=model,
@@ -156,6 +171,7 @@ class AzureOpenAIProvider(BaseProvider):
                 total_tokens=u.total_tokens,
             ),
             raw=raw,
+            parsed=parsed,
         )
 
     # ------------------------------------------------------------------
@@ -168,7 +184,7 @@ class AzureOpenAIProvider(BaseProvider):
             raw = self._client.chat.completions.create(**params)
         except Exception as exc:
             self._wrap_exception(exc)
-        return self._map_response(raw, request.model)
+        return self._map_response(raw, request.model, request.response_format)
 
     async def acomplete(self, request: CompletionRequest) -> CompletionResponse:
         params = self._build_params(request)
@@ -176,7 +192,7 @@ class AzureOpenAIProvider(BaseProvider):
             raw = await self._async_client.chat.completions.create(**params)
         except Exception as exc:
             self._wrap_exception(exc)
-        return self._map_response(raw, request.model)
+        return self._map_response(raw, request.model, request.response_format)
 
     def stream(self, request: CompletionRequest) -> Iterator[StreamChunk]:
         params = self._build_params(request)

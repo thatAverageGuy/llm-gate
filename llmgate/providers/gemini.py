@@ -131,10 +131,14 @@ class GeminiProvider(BaseProvider):
                     for t in request.tools
                 ]
             }]
+        if request.response_format is not None:
+            from llmgate.structured import get_json_schema  # noqa: PLC0415
+            config["response_mime_type"] = "application/json"
+            config["response_schema"] = get_json_schema(request.response_format)
         config.update(request.extra_kwargs)
         return config
 
-    def _map_response(self, raw: Any, model: str) -> CompletionResponse:
+    def _map_response(self, raw: Any, model: str, response_format: Any = None) -> CompletionResponse:
         text = raw.text if hasattr(raw, "text") and raw.text else None
         usage_meta = getattr(raw, "usage_metadata", None)
         usage = TokenUsage(
@@ -157,6 +161,11 @@ class GeminiProvider(BaseProvider):
                         arguments=dict(fc.args) if fc.args else {},
                     ))
 
+        parsed = None
+        if response_format is not None and text:
+            from llmgate.structured import validate_parsed  # noqa: PLC0415
+            parsed = validate_parsed(text, response_format)
+
         return CompletionResponse(
             id=str(uuid.uuid4()),
             model=model,
@@ -174,6 +183,7 @@ class GeminiProvider(BaseProvider):
             ],
             usage=usage,
             raw=raw,
+            parsed=parsed,
         )
 
     def _handle_error(self, exc: Exception) -> None:
@@ -205,7 +215,7 @@ class GeminiProvider(BaseProvider):
             )
         except Exception as exc:  # noqa: BLE001
             self._handle_error(exc)
-        return self._map_response(raw, request.model)
+        return self._map_response(raw, request.model, request.response_format)
 
     async def acomplete(self, request: CompletionRequest) -> CompletionResponse:
         system_instruction, contents = self._to_genai_contents(request.messages)
@@ -217,7 +227,7 @@ class GeminiProvider(BaseProvider):
             )
         except Exception as exc:  # noqa: BLE001
             self._handle_error(exc)
-        return self._map_response(raw, request.model)
+        return self._map_response(raw, request.model, request.response_format)
 
     def stream(self, request: CompletionRequest) -> Iterator[StreamChunk]:
         system_instruction, contents = self._to_genai_contents(request.messages)

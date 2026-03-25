@@ -166,11 +166,12 @@ class CohereProvider(BaseProvider):
                 for t in request.tools
             ]
             if request.tool_choice:
-                # Cohere V2 supports force_single_step: bool
                 params["tool_choice"] = request.tool_choice
+        if request.response_format is not None:
+            params["response_format"] = {"type": "json_object"}
         return params
 
-    def _map_response(self, raw: Any, model: str) -> CompletionResponse:
+    def _map_response(self, raw: Any, model: str, response_format: Any = None) -> CompletionResponse:
         choices = []
         for c in (raw.message.content if hasattr(raw, "message") else []):
             pass  # handled below
@@ -212,6 +213,10 @@ class CohereProvider(BaseProvider):
 
         usage = raw.usage if hasattr(raw, "usage") else None
         billed = getattr(usage, "billed_units", None) if usage else None
+        parsed = None
+        if response_format is not None and text_content:
+            from llmgate.structured import validate_parsed  # noqa: PLC0415
+            parsed = validate_parsed(text_content, response_format)
         return CompletionResponse(
             id=getattr(raw, "id", ""),
             model=model,
@@ -223,6 +228,7 @@ class CohereProvider(BaseProvider):
                 total_tokens=(getattr(billed, "input_tokens", 0) + getattr(billed, "output_tokens", 0)) if billed else 0,
             ),
             raw=raw,
+            parsed=parsed,
         )
 
     # ------------------------------------------------------------------
@@ -235,7 +241,7 @@ class CohereProvider(BaseProvider):
             raw = self._client.chat(**params)
         except Exception as exc:
             self._wrap_exception(exc)
-        return self._map_response(raw, request.model)
+        return self._map_response(raw, request.model, request.response_format)
 
     async def acomplete(self, request: CompletionRequest) -> CompletionResponse:
         params = self._build_params(request)
@@ -243,7 +249,7 @@ class CohereProvider(BaseProvider):
             raw = await self._async_client.chat(**params)
         except Exception as exc:
             self._wrap_exception(exc)
-        return self._map_response(raw, request.model)
+        return self._map_response(raw, request.model, request.response_format)
 
     def stream(self, request: CompletionRequest) -> Iterator[StreamChunk]:
         params = self._build_params(request)

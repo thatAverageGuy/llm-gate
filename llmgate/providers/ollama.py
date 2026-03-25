@@ -89,9 +89,13 @@ class OllamaProvider(BaseProvider):
                 for t in request.tools
             ]
 
+        if request.response_format is not None:
+            from llmgate.structured import get_json_schema  # noqa: PLC0415
+            params["format"] = get_json_schema(request.response_format)
+
         return params
 
-    def _map_response(self, raw: Any, model: str) -> CompletionResponse:
+    def _map_response(self, raw: Any, model: str, response_format: Any = None) -> CompletionResponse:
         msg = raw.message
         tool_calls: list[ToolCall] = []
 
@@ -110,7 +114,12 @@ class OllamaProvider(BaseProvider):
                     arguments=args,
                 ))
 
+        text = msg.content if not tool_calls else None
         finish_reason = "tool_calls" if tool_calls else (raw.done_reason or "stop")
+        parsed = None
+        if response_format is not None and text:
+            from llmgate.structured import validate_parsed  # noqa: PLC0415
+            parsed = validate_parsed(text, response_format)
         return CompletionResponse(
             id=f"ollama-{id(raw)}",
             model=model,
@@ -119,7 +128,7 @@ class OllamaProvider(BaseProvider):
                 index=0,
                 message=Message(
                     role=msg.role,
-                    content=msg.content if not tool_calls else None,
+                    content=text,
                     tool_calls=tool_calls or None,
                 ),
                 finish_reason=finish_reason,
@@ -131,6 +140,7 @@ class OllamaProvider(BaseProvider):
                              + (getattr(raw, "eval_count", 0) or 0),
             ),
             raw=raw,
+            parsed=parsed,
         )
 
     # ------------------------------------------------------------------
@@ -146,7 +156,7 @@ class OllamaProvider(BaseProvider):
                 f"Ollama error: {exc}. Is Ollama running at the configured host?",
                 provider=self.name,
             ) from exc
-        return self._map_response(raw, request.model)
+        return self._map_response(raw, request.model, request.response_format)
 
     async def acomplete(self, request: CompletionRequest) -> CompletionResponse:
         params = self._build_params(request)
@@ -157,7 +167,7 @@ class OllamaProvider(BaseProvider):
                 f"Ollama error: {exc}. Is Ollama running at the configured host?",
                 provider=self.name,
             ) from exc
-        return self._map_response(raw, request.model)
+        return self._map_response(raw, request.model, request.response_format)
 
     def stream(self, request: CompletionRequest) -> Iterator[StreamChunk]:
         params = self._build_params(request)

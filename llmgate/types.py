@@ -10,7 +10,10 @@ interface regardless of which provider is under the hood.
 from __future__ import annotations
 
 import json
-from typing import Any, Literal, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional
+
+if TYPE_CHECKING:
+    from pydantic import BaseModel as PydanticBaseModel
 
 from pydantic import BaseModel, Field
 
@@ -113,6 +116,22 @@ class CompletionRequest(BaseModel):
     "auto" | "none" | {"type": "function", "function": {"name": "..."}}
     Each provider normalises this to its own format internally.
     """
+    response_format: Optional[Any] = Field(default=None)
+    """
+    Pass a Pydantic ``BaseModel`` *class* (not an instance) to request a
+    structured output.  The provider will be instructed to return JSON
+    conforming to the model's schema; the parsed instance is available at
+    ``CompletionResponse.parsed``.
+
+    Example::
+
+        class Movie(BaseModel):
+            title: str
+            year: int
+
+        resp = completion("gpt-4o-mini", messages, response_format=Movie)
+        movie: Movie = resp.parsed
+    """
     extra_kwargs: dict[str, Any] = Field(default_factory=dict)
 
     model_config = {"arbitrary_types_allowed": True}
@@ -154,6 +173,8 @@ class CompletionResponse(BaseModel):
     choices: list[Choice]
     usage: TokenUsage = Field(default_factory=TokenUsage)
     raw: Optional[Any] = Field(default=None, exclude=True)
+    parsed: Optional[Any] = Field(default=None, exclude=True)
+    """Validated Pydantic model instance when ``response_format`` was supplied."""
 
     # Convenience shortcuts
     @property

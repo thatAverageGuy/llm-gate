@@ -101,10 +101,14 @@ class AnthropicProvider(BaseProvider):
         return system, result
 
     def _build_params(self, request: CompletionRequest) -> dict[str, Any]:
-        system, messages = self._build_messages(request.messages)
+        messages = request.messages
+        if request.response_format is not None:
+            from llmgate.structured import inject_schema_prompt  # noqa: PLC0415
+            messages = inject_schema_prompt(messages, request.response_format)
+        system, msgs = self._build_messages(messages)
         params: dict[str, Any] = {
             "model": request.model,
-            "messages": messages,
+            "messages": msgs,
             "max_tokens": request.max_tokens or 1024,
             **request.extra_kwargs,
         }
@@ -124,9 +128,7 @@ class AnthropicProvider(BaseProvider):
                 for t in request.tools
             ]
             if request.tool_choice is not None:
-                # Normalise: "auto"→{"type":"auto"}, "none"→{"type":"none"}, dict pass-through
                 if isinstance(request.tool_choice, str):
-                    # "auto" | "none" | function name
                     if request.tool_choice in ("auto", "none"):
                         params["tool_choice"] = {"type": request.tool_choice}
                     else:
@@ -135,7 +137,7 @@ class AnthropicProvider(BaseProvider):
                     params["tool_choice"] = request.tool_choice
         return params
 
-    def _map_response(self, raw: Any, model: str) -> CompletionResponse:
+    def _map_response(self, raw: Any, model: str, response_format: Any = None) -> CompletionResponse:
         text_parts: list[str] = []
         tool_calls: list[ToolCall] = []
 
@@ -155,6 +157,10 @@ class AnthropicProvider(BaseProvider):
             completion_tokens=raw.usage.output_tokens if raw.usage else 0,
             total_tokens=(raw.usage.input_tokens + raw.usage.output_tokens) if raw.usage else 0,
         )
+        parsed = None
+        if response_format is not None and content:
+            from llmgate.structured import validate_parsed  # noqa: PLC0415
+            parsed = validate_parsed(content, response_format)
         return CompletionResponse(
             id=raw.id,
             model=model,
@@ -172,6 +178,7 @@ class AnthropicProvider(BaseProvider):
             ],
             usage=usage,
             raw=raw,
+            parsed=parsed,
         )
 
     def _handle_error(self, exc: Exception) -> None:
@@ -193,14 +200,14 @@ class AnthropicProvider(BaseProvider):
             raw = self._client.messages.create(**self._build_params(request))
         except Exception as exc:  # noqa: BLE001
             self._handle_error(exc)
-        return self._map_response(raw, request.model)
+        return self._map_response(raw, request.model, request.response_format)
 
     async def acomplete(self, request: CompletionRequest) -> CompletionResponse:
         try:
             raw = await self._async_client.messages.create(**self._build_params(request))
         except Exception as exc:  # noqa: BLE001
             self._handle_error(exc)
-        return self._map_response(raw, request.model)
+        return self._map_response(raw, request.model, request.response_format)
 
     def stream(self, request: CompletionRequest) -> Iterator[StreamChunk]:
         chunk_id = str(uuid.uuid4())

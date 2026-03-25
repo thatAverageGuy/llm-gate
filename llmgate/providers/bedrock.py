@@ -130,11 +130,15 @@ class BedrockProvider(BaseProvider):
 
     def _build_converse_params(self, request: CompletionRequest) -> dict[str, Any]:
         model_id = self._strip_prefix(request.model)
-        messages, system_prompt = _to_bedrock_messages(request.messages)
+        messages = request.messages
+        if request.response_format is not None:
+            from llmgate.structured import inject_schema_prompt  # noqa: PLC0415
+            messages = inject_schema_prompt(messages, request.response_format)
+        bedrock_messages, system_prompt = _to_bedrock_messages(messages)
 
         params: dict[str, Any] = {
             "modelId": model_id,
-            "messages": messages,
+            "messages": bedrock_messages,
         }
         if system_prompt:
             params["system"] = [{"text": system_prompt}]
@@ -169,7 +173,7 @@ class BedrockProvider(BaseProvider):
 
         return params
 
-    def _map_response(self, raw: Any, model: str) -> CompletionResponse:
+    def _map_response(self, raw: Any, model: str, response_format: Any = None) -> CompletionResponse:
         output = raw.get("output", {}).get("message", {})
         content_blocks = output.get("content", [])
         stop_reason = raw.get("stopReason", "end_turn")
@@ -192,6 +196,10 @@ class BedrockProvider(BaseProvider):
         finish_reason = "tool_calls" if tool_calls else stop_reason
 
         usage_raw = raw.get("usage", {})
+        parsed = None
+        if response_format is not None and text:
+            from llmgate.structured import validate_parsed  # noqa: PLC0415
+            parsed = validate_parsed(text, response_format)
         return CompletionResponse(
             id=raw.get("ResponseMetadata", {}).get("RequestId", ""),
             model=model,
@@ -211,6 +219,7 @@ class BedrockProvider(BaseProvider):
                 total_tokens=usage_raw.get("totalTokens", 0),
             ),
             raw=raw,
+            parsed=parsed,
         )
 
     # ------------------------------------------------------------------
@@ -223,7 +232,7 @@ class BedrockProvider(BaseProvider):
             raw = self._client.converse(**params)
         except Exception as exc:
             self._wrap_exception(exc)
-        return self._map_response(raw, request.model)
+        return self._map_response(raw, request.model, request.response_format)
 
     async def acomplete(self, request: CompletionRequest) -> CompletionResponse:
         import asyncio  # noqa: PLC0415

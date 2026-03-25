@@ -78,9 +78,11 @@ class MistralProvider(BaseProvider):
             ]
             if request.tool_choice:
                 params["tool_choice"] = request.tool_choice
+        if request.response_format is not None:
+            params["response_format"] = {"type": "json_object"}
         return params
 
-    def _map_response(self, raw: Any, model: str) -> CompletionResponse:
+    def _map_response(self, raw: Any, model: str, response_format: Any = None) -> CompletionResponse:
         choices = []
         for c in raw.choices:
             msg = c.message
@@ -108,6 +110,10 @@ class MistralProvider(BaseProvider):
                 finish_reason=c.finish_reason or "stop",
             ))
         usage = raw.usage
+        parsed = None
+        if response_format is not None and choices:
+            from llmgate.structured import validate_parsed  # noqa: PLC0415
+            parsed = validate_parsed(choices[0].message.content, response_format)
         return CompletionResponse(
             id=raw.id,
             model=model,
@@ -119,6 +125,7 @@ class MistralProvider(BaseProvider):
                 total_tokens=usage.total_tokens if usage else 0,
             ),
             raw=raw,
+            parsed=parsed,
         )
 
     # ------------------------------------------------------------------
@@ -131,7 +138,7 @@ class MistralProvider(BaseProvider):
             raw = self._client.chat.complete(**params)
         except Exception as exc:
             self._wrap_exception(exc)
-        return self._map_response(raw, request.model)
+        return self._map_response(raw, request.model, request.response_format)
 
     async def acomplete(self, request: CompletionRequest) -> CompletionResponse:
         params = self._build_params(request)
@@ -139,7 +146,7 @@ class MistralProvider(BaseProvider):
             raw = await self._client.chat.complete_async(**params)
         except Exception as exc:
             self._wrap_exception(exc)
-        return self._map_response(raw, request.model)
+        return self._map_response(raw, request.model, request.response_format)
 
     def stream(self, request: CompletionRequest) -> Iterator[StreamChunk]:
         params = self._build_params(request)

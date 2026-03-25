@@ -32,7 +32,7 @@ With middleware::
 """
 from __future__ import annotations
 
-from llmgate.completion import acompletion, completion
+from llmgate.completion import acompletion, aparse, completion, parse
 from llmgate.exceptions import (
     AuthError,
     ConfigError,

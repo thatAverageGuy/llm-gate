@@ -76,6 +76,9 @@ class GroqProvider(BaseProvider):
             ]
             if request.tool_choice is not None:
                 params["tool_choice"] = request.tool_choice
+        if request.response_format is not None:
+            # Groq supports JSON object mode; validate against schema client-side
+            params["response_format"] = {"type": "json_object"}
         return params
 
     def _parse_tool_calls(self, raw_tool_calls: Any) -> list[ToolCall] | None:
@@ -90,7 +93,7 @@ class GroqProvider(BaseProvider):
             result.append(ToolCall(id=tc.id, function=tc.function.name, arguments=args))
         return result or None
 
-    def _map_response(self, raw: Any, model: str) -> CompletionResponse:
+    def _map_response(self, raw: Any, model: str, response_format: Any = None) -> CompletionResponse:
         choices = []
         for c in raw.choices:
             tool_calls = self._parse_tool_calls(getattr(c.message, "tool_calls", None))
@@ -108,6 +111,10 @@ class GroqProvider(BaseProvider):
             completion_tokens=raw.usage.completion_tokens if raw.usage else 0,
             total_tokens=raw.usage.total_tokens if raw.usage else 0,
         )
+        parsed = None
+        if response_format is not None and choices:
+            from llmgate.structured import validate_parsed  # noqa: PLC0415
+            parsed = validate_parsed(choices[0].message.content, response_format)
         return CompletionResponse(
             id=raw.id,
             model=model,
@@ -115,6 +122,7 @@ class GroqProvider(BaseProvider):
             choices=choices,
             usage=usage,
             raw=raw,
+            parsed=parsed,
         )
 
     def _handle_error(self, exc: Exception) -> None:
@@ -136,7 +144,7 @@ class GroqProvider(BaseProvider):
             raw = self._client.chat.completions.create(**self._build_params(request))
         except Exception as exc:  # noqa: BLE001
             self._handle_error(exc)
-        return self._map_response(raw, request.model)
+        return self._map_response(raw, request.model, request.response_format)
 
     async def acomplete(self, request: CompletionRequest) -> CompletionResponse:
         try:
@@ -145,7 +153,7 @@ class GroqProvider(BaseProvider):
             )
         except Exception as exc:  # noqa: BLE001
             self._handle_error(exc)
-        return self._map_response(raw, request.model)
+        return self._map_response(raw, request.model, request.response_format)
 
     def stream(self, request: CompletionRequest) -> Iterator[StreamChunk]:
         try:

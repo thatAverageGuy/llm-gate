@@ -68,6 +68,17 @@ class OpenAIProvider(BaseProvider):
             ]
             if request.tool_choice is not None:
                 params["tool_choice"] = request.tool_choice
+        if request.response_format is not None:
+            from llmgate.structured import get_json_schema  # noqa: PLC0415
+            schema = get_json_schema(request.response_format)
+            params["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": request.response_format.__name__.lower(),
+                    "strict": True,
+                    "schema": schema,
+                },
+            }
         return params
 
     def _parse_tool_calls(self, raw_tool_calls: Any) -> list[ToolCall] | None:
@@ -82,7 +93,7 @@ class OpenAIProvider(BaseProvider):
             result.append(ToolCall(id=tc.id, function=tc.function.name, arguments=args))
         return result or None
 
-    def _map_response(self, raw: Any, model: str) -> CompletionResponse:
+    def _map_response(self, raw: Any, model: str, response_format: Any = None) -> CompletionResponse:
         choices = []
         for c in raw.choices:
             tool_calls = self._parse_tool_calls(getattr(c.message, "tool_calls", None))
@@ -100,6 +111,10 @@ class OpenAIProvider(BaseProvider):
             completion_tokens=raw.usage.completion_tokens if raw.usage else 0,
             total_tokens=raw.usage.total_tokens if raw.usage else 0,
         )
+        parsed = None
+        if response_format is not None and choices:
+            from llmgate.structured import validate_parsed  # noqa: PLC0415
+            parsed = validate_parsed(choices[0].message.content, response_format)
         return CompletionResponse(
             id=raw.id,
             model=model,
@@ -107,6 +122,7 @@ class OpenAIProvider(BaseProvider):
             choices=choices,
             usage=usage,
             raw=raw,
+            parsed=parsed,
         )
 
     def _handle_openai_error(self, exc: Exception) -> None:
@@ -129,7 +145,7 @@ class OpenAIProvider(BaseProvider):
             raw = self._client.chat.completions.create(**self._build_params(request))
         except Exception as exc:  # noqa: BLE001
             self._handle_openai_error(exc)
-        return self._map_response(raw, request.model)
+        return self._map_response(raw, request.model, request.response_format)
 
     async def acomplete(self, request: CompletionRequest) -> CompletionResponse:
         try:
@@ -138,7 +154,7 @@ class OpenAIProvider(BaseProvider):
             )
         except Exception as exc:  # noqa: BLE001
             self._handle_openai_error(exc)
-        return self._map_response(raw, request.model)
+        return self._map_response(raw, request.model, request.response_format)
 
     def stream(self, request: CompletionRequest) -> Iterator[StreamChunk]:
         try:

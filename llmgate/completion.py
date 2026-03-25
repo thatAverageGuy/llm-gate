@@ -20,7 +20,7 @@ re-created for every call.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, AsyncIterator, Iterator, Literal, Union, overload
+from typing import TYPE_CHECKING, Any, AsyncIterator, Iterator, Literal, TypeVar, Union, overload
 
 if TYPE_CHECKING:
     from llmgate.middleware.base import BaseMiddleware
@@ -37,6 +37,8 @@ from llmgate.providers.openai import OpenAIProvider
 from llmgate.types import (
     CompletionRequest, CompletionResponse, Message, StreamChunk, ToolDefinition,
 )
+
+T = TypeVar("T")
 
 
 # ---------------------------------------------------------------------------
@@ -162,7 +164,7 @@ def _build_request(
     kwargs: dict[str, Any],
 ) -> CompletionRequest:
     known_keys = {"max_tokens", "temperature", "top_p", "tools", "tool_choice",
-                  "extra_kwargs", "middleware", "provider", "api_key"}
+                  "extra_kwargs", "middleware", "provider", "api_key", "response_format"}
     extra = {k: v for k, v in kwargs.items() if k not in known_keys}
     # Normalise tools: accept list of ToolDefinition or plain dicts
     raw_tools = kwargs.get("tools")
@@ -172,6 +174,12 @@ def _build_request(
             ToolDefinition(**t) if isinstance(t, dict) else t
             for t in raw_tools
         ]
+    response_format = kwargs.get("response_format")
+    if response_format is not None and stream:
+        raise ValueError(
+            "stream=True and response_format cannot be used together. "
+            "Structured outputs require a complete response."
+        )
     return CompletionRequest(
         model=model,
         messages=_normalise_messages(messages),
@@ -181,6 +189,7 @@ def _build_request(
         stream=stream,
         tools=tools,
         tool_choice=kwargs.get("tool_choice"),
+        response_format=response_format,
         extra_kwargs=extra,
     )
 
@@ -332,3 +341,74 @@ async def acompletion(
     if stream:
         return provider_inst.astream(request)
     return await provider_inst.acomplete(request)
+
+
+# ---------------------------------------------------------------------------
+# Convenience: parse() / aparse() — return the Pydantic model directly
+# ---------------------------------------------------------------------------
+
+
+def parse(
+    model: str,
+    messages: _MsgList,
+    *,
+    response_format: type[T],
+    provider: str | None = None,
+    api_key: str | None = None,
+    middleware: list | None = None,
+    **kwargs: Any,
+) -> T:
+    """
+    Structured-output shorthand — returns a validated Pydantic model instance.
+
+    Equivalent to::
+
+        resp = completion(model, messages, response_format=MyModel, **kwargs)
+        return resp.parsed  # type: MyModel
+
+    Raises ``ValueError`` if ``resp.parsed`` is ``None`` (should never happen
+    for a well-behaved provider, but guards against edge cases).
+    """
+    resp = completion(
+        model,
+        messages,
+        response_format=response_format,
+        provider=provider,
+        api_key=api_key,
+        middleware=middleware,
+        **kwargs,
+    )
+    if resp.parsed is None:  # type: ignore[union-attr]
+        raise ValueError(
+            f"Provider returned no structured output. "
+            f"Raw text: {resp.text!r}"  # type: ignore[union-attr]
+        )
+    return resp.parsed  # type: ignore[return-value,union-attr]
+
+
+async def aparse(
+    model: str,
+    messages: _MsgList,
+    *,
+    response_format: type[T],
+    provider: str | None = None,
+    api_key: str | None = None,
+    middleware: list | None = None,
+    **kwargs: Any,
+) -> T:
+    """Async version of :func:`parse`."""
+    resp = await acompletion(
+        model,
+        messages,
+        response_format=response_format,
+        provider=provider,
+        api_key=api_key,
+        middleware=middleware,
+        **kwargs,
+    )
+    if resp.parsed is None:  # type: ignore[union-attr]
+        raise ValueError(
+            f"Provider returned no structured output. "
+            f"Raw text: {resp.text!r}"  # type: ignore[union-attr]
+        )
+    return resp.parsed  # type: ignore[return-value,union-attr]
