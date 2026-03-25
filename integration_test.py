@@ -18,7 +18,7 @@ if env_file.exists():
 # Add project root to path so we use the local llmgate, not a installed one
 sys.path.insert(0, str(Path(__file__).parent))
 
-from llmgate import completion
+from llmgate import completion  # noqa: E402
 
 MESSAGES = [{"role": "user", "content": "Say exactly: 'llmgate works!' and nothing else."}]
 
@@ -29,7 +29,7 @@ TESTS = [
 ]
 
 print(f"\n{'='*55}")
-print(f"  llmgate real-API integration test")
+print("  llmgate real-API integration test")
 print(f"{'='*55}\n")
 
 passed = failed = 0
@@ -55,7 +55,7 @@ print(f"{'='*55}\n")
 # ---------------------------------------------------------------------------
 
 print(f"\n{'='*55}")
-print(f"  llmgate streaming smoke test")
+print("  llmgate streaming smoke test")
 print(f"{'='*55}\n")
 
 STREAM_TESTS = [
@@ -88,7 +88,7 @@ print(f"{'='*55}\n")
 from llmgate.types import FunctionDefinition, Message, ToolDefinition  # noqa: E402
 
 print(f"\n{'='*55}")
-print(f"  llmgate tool-calling smoke test")
+print("  llmgate tool-calling smoke test")
 print(f"{'='*55}\n")
 
 TOOLS = [ToolDefinition(function=FunctionDefinition(
@@ -160,7 +160,7 @@ from llmgate.middleware import CacheMiddleware, LoggingMiddleware, RetryMiddlewa
 logging.basicConfig(level=logging.DEBUG)
 
 print(f"\n{'='*55}")
-print(f"  llmgate middleware smoke test")
+print("  llmgate middleware smoke test")
 print(f"{'='*55}\n")
 
 mw_passed = mw_failed = 0

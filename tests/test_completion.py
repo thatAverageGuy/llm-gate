@@ -2,12 +2,10 @@
 from __future__ import annotations
 
 import sys
-from typing import Iterator
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-import llmgate.completion  # ensure module is loaded into sys.modules
 from llmgate import acompletion, completion
 from llmgate.exceptions import ModelNotFoundError
 from llmgate.types import Choice, CompletionResponse, Message, StreamChunk, TokenUsage
@@ -92,7 +90,7 @@ class TestCompletionRouting:
             yield StreamChunk(id="c", model="gpt-4o", provider="openai", delta="hi")
 
         with patch("llmgate.providers.openai.OpenAIProvider.stream",
-                   return_value=_fake_stream()) as mock_stream, \
+                   return_value=_fake_stream()), \
              patch("llmgate.providers.openai.OpenAIProvider.__init__", return_value=None):
             _clear_cache()
             chunks = list(completion("gpt-4o", [{"role": "user", "content": "hi"}], stream=True))
@@ -134,7 +132,7 @@ class TestACompletion:
             yield StreamChunk(id="c", model="gpt-4o", provider="openai", delta="hello")
 
         with patch("llmgate.providers.openai.OpenAIProvider.astream",
-                   return_value=_fake_astream()) as mock_astream, \
+                   return_value=_fake_astream()), \
              patch("llmgate.providers.openai.OpenAIProvider.__init__", return_value=None):
             _clear_cache()
             chunks = []

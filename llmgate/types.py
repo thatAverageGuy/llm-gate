@@ -13,7 +13,7 @@ import json
 from typing import TYPE_CHECKING, Any, Literal, Optional
 
 if TYPE_CHECKING:
-    from pydantic import BaseModel as PydanticBaseModel
+    pass
 
 from pydantic import BaseModel, Field
 

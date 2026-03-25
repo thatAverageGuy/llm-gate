@@ -71,7 +71,7 @@ class BaseMiddleware(ABC):
 
             # Let the subclass handle() drive the sync call_next
             # by wrapping the async call via asyncio.run_coroutine_threadsafe
-            loop = asyncio.get_event_loop()
+            asyncio.get_event_loop()
             return await call_next(request)
 
         return await _run()

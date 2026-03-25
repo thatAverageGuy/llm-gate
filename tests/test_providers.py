@@ -1,7 +1,6 @@
 """Tests for individual provider request/response mapping (all mocked)."""
 from __future__ import annotations
 
-import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -101,7 +100,7 @@ class TestOpenAIProvider:
             raw.choices[0].finish_reason = "tool_calls"
             raw.choices[0].message.content = None
 
-            req = _make_request("gpt-4o-mini")
+            _make_request("gpt-4o-mini")
             resp = provider._map_response(raw, "gpt-4o-mini")
             assert len(resp.tool_calls) == 1
             assert resp.tool_calls[0].function == "get_weather"
@@ -198,7 +197,7 @@ class TestAnthropicProvider:
     def test_tool_result_message_format(self):
         with patch("llmgate.providers.anthropic.AnthropicProvider.__init__", return_value=None):
             from llmgate.providers.anthropic import AnthropicProvider
-            provider = AnthropicProvider.__new__(AnthropicProvider)
+            AnthropicProvider.__new__(AnthropicProvider)
             msgs = [
                 Message(role="user", content="What's the weather?"),
                 Message(role="assistant", content=None, tool_calls=[

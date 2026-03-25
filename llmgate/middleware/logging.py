@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Callable
+from typing import Any
 
 from llmgate.middleware.base import AsyncNext, BaseMiddleware, SyncNext
 from llmgate.types import CompletionRequest, CompletionResponse

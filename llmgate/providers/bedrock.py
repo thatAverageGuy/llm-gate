@@ -19,7 +19,6 @@ The Converse API is a unified interface that works across all Bedrock models
 """
 from __future__ import annotations
 
-import json
 import os
 from typing import Any, AsyncIterator, ClassVar, Iterator
 

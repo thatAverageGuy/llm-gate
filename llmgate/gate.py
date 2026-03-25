@@ -32,7 +32,6 @@ from typing import Any, AsyncIterator, Iterator
 from llmgate.completion import (
     _build_request,
     _get_or_create_provider,
-    _normalise_messages,
 )
 from llmgate.embeddings import aembed as _aembed_fn
 from llmgate.embeddings import embed as _embed_fn

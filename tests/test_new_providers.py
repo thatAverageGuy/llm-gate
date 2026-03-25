@@ -5,14 +5,14 @@ No API calls are made — all SDK interactions are patched.
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from llmgate.exceptions import AuthError, ProviderAPIError
+from llmgate.exceptions import AuthError
 from llmgate.types import (
-    Choice, CompletionRequest, CompletionResponse, FunctionDefinition,
-    Message, TokenUsage, ToolDefinition,
+    CompletionRequest, FunctionDefinition,
+    Message, ToolDefinition,
 )
 
 

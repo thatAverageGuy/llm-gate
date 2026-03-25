@@ -69,7 +69,7 @@ class TestOpenAIEmbeddings:
         mock_client = MagicMock()
         mock_client.embeddings.create.return_value = self._make_raw()
 
-        with patch("llmgate.embeddings.os") as mock_os, \
+        with patch("llmgate.embeddings.os"), \
              patch("llmgate.embeddings._embed_openai") as mock_fn:
             mock_fn.return_value = EmbeddingResponse(
                 model="text-embedding-3-small",

@@ -3,10 +3,8 @@ Tests for the middleware system — all mocked, no real API calls.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -202,7 +200,7 @@ class TestRetryMiddleware:
             if len(calls) < 2:
                 raise RateLimitError("429", provider="groq")
             return _resp()
-        result = await mw.ahandle(_req(), _next)
+        await mw.ahandle(_req(), _next)
         assert len(calls) == 2
 
 
@@ -339,7 +337,7 @@ class TestRateLimitMiddleware:
 class TestMiddlewareChain:
     def test_chain_order(self):
         """Middlewares execute in correct left-to-right order."""
-        from llmgate.gate import LLMGate, _build_sync_chain
+        from llmgate.gate import _build_sync_chain
 
         order = []
 
