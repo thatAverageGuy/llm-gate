@@ -34,8 +34,12 @@ from llmgate.completion import (
     _get_or_create_provider,
     _normalise_messages,
 )
+from llmgate.embeddings import aembed as _aembed_fn
+from llmgate.embeddings import embed as _embed_fn
 from llmgate.middleware.base import AsyncNext, BaseMiddleware, SyncNext
-from llmgate.types import CompletionRequest, CompletionResponse, Message, StreamChunk
+from llmgate.types import (
+    CompletionRequest, CompletionResponse, EmbeddingResponse, Message, StreamChunk,
+)
 
 
 def _build_sync_chain(
@@ -171,3 +175,27 @@ class LLMGate:
 
         async for chunk in await chain(request):
             yield chunk
+
+    # ------------------------------------------------------------------
+    # Embeddings
+    # ------------------------------------------------------------------
+
+    def embed(
+        self,
+        model: str,
+        input: str | list[str],  # noqa: A002
+        **kwargs: Any,
+    ) -> EmbeddingResponse:
+        """Generate embeddings using the configured defaults."""
+        merged = {**self._defaults, **kwargs}
+        return _embed_fn(model, input, api_key=merged.pop("api_key", None), **merged)
+
+    async def aembed(
+        self,
+        model: str,
+        input: str | list[str],  # noqa: A002
+        **kwargs: Any,
+    ) -> EmbeddingResponse:
+        """Async version of :meth:`embed`."""
+        merged = {**self._defaults, **kwargs}
+        return await _aembed_fn(model, input, api_key=merged.pop("api_key", None), **merged)

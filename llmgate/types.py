@@ -210,3 +210,33 @@ class StreamChunk(BaseModel):
     finish_reason: Optional[str] = None     # set on the final chunk
     index: int = 0
     usage: Optional[TokenUsage] = None      # populated on the last chunk by some providers
+
+
+# ---------------------------------------------------------------------------
+# Embeddings types
+# ---------------------------------------------------------------------------
+
+
+class EmbeddingRequest(BaseModel):
+    """Input to :func:`~llmgate.embeddings.embed`."""
+
+    model: str
+    input: str | list[str]
+    """Text or list of texts to embed. A list enables batch embedding in one call."""
+
+    dimensions: Optional[int] = None
+    """Requested output dimensionality (supported by OpenAI, Gemini, Azure)."""
+
+    extra_kwargs: dict[str, Any] = Field(default_factory=dict)
+
+
+class EmbeddingResponse(BaseModel):
+    """Returned by :func:`~llmgate.embeddings.embed`."""
+
+    model: str
+    provider: str
+    embeddings: list[list[float]]
+    """One embedding vector per input text. Always a list even for single-string input."""
+
+    usage: TokenUsage = Field(default_factory=TokenUsage)
+    raw: Any = Field(default=None, exclude=True)

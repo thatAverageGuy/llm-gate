@@ -261,6 +261,56 @@ asyncio.run(compare_models("What is 42?"))
 
 ---
 
+## Structured Outputs
+
+Pass any Pydantic `BaseModel` class to `response_format` to receive a typed, validated instance.
+
+```python
+from pydantic import BaseModel
+from llmgate import completion, parse
+
+class User(BaseModel):
+    name: str
+    age: int
+
+# Full completion API
+response = completion("gpt-4o-mini", messages, response_format=User)
+user: User = response.parsed
+
+# Shorthand API — returns exactly the instance
+user = parse("groq/llama-3.1-8b-instant", messages, response_format=User)
+print(user.name)
+```
+
+---
+
+## Embeddings
+
+Generate text embeddings across 7 providers using `embed()` and `aembed()`.
+
+```python
+from llmgate import embed, aembed
+
+# Single text
+response = embed("text-embedding-3-small", "Hello world")
+vector = response.embeddings[0]
+
+# Batch embedding (list of strings)
+response = embed("gemini/text-embedding-004", ["Hello", "World"])
+vectors = response.embeddings  # list[list[float]]
+
+# Async
+response = await aembed("cohere/embed-english-v3.0", "Hello")
+```
+
+The returned `EmbeddingResponse` contains:
+- `embeddings` (list of float lists)
+- `model`
+- `provider`
+- `usage` (prompt / total tokens)
+
+---
+
 ## Error Handling
 
 ```python
@@ -503,4 +553,4 @@ response = completion("my-model-v1", messages)
 | `groq/llama-3.1-8b` | `groq/llama-3.1-8b` | Same prefix convention |
 | `litellm.exceptions.AuthenticationError` | `llmgate.exceptions.AuthError` | Renamed, slimmer hierarchy |
 | Gateway / proxy mode | ❌ Not supported | By design — use a dedicated gateway |
-| Streaming | ❌ Not yet (v0.2) | Interface stubbed |
+| Streaming | ✅ Supported | `stream=True` |

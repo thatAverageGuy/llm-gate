@@ -13,19 +13,28 @@ Quick start::
     resp = completion("gpt-4o-mini", [{"role": "user", "content": "Hello!"}])
     print(resp.text)
 
-Optional providers::
+Structured outputs::
 
-    # Install extras: pip install llmgate[mistral,cohere,bedrock,ollama]
-    resp = completion("mistral/mistral-large-latest", messages)
-    resp = completion("cohere/command-r-plus",        messages)
-    resp = completion("azure/my-deployment",          messages)
-    resp = completion("bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0", messages)
-    resp = completion("ollama/llama3.2",              messages)
+    from pydantic import BaseModel
+    from llmgate import parse
+
+    class City(BaseModel):
+        name: str
+        population: int
+
+    city = parse("groq/llama-3.1-8b-instant", messages, response_format=City)
+
+Embeddings::
+
+    from llmgate import embed
+
+    resp = embed("text-embedding-3-small", "Hello world")
+    vector = resp.embeddings[0]   # list[float]
 
 With middleware::
 
     from llmgate import LLMGate
-    from llmgate.middleware import RetryMiddleware, LoggingMiddleware, CacheMiddleware
+    from llmgate.middleware import RetryMiddleware, CacheMiddleware
 
     gate = LLMGate(middleware=[RetryMiddleware(max_retries=3), CacheMiddleware(ttl=300)])
     resp = gate.completion("groq/llama-3.1-8b-instant", messages)
@@ -33,9 +42,11 @@ With middleware::
 from __future__ import annotations
 
 from llmgate.completion import acompletion, aparse, completion, parse
+from llmgate.embeddings import aembed, embed
 from llmgate.exceptions import (
     AuthError,
     ConfigError,
+    EmbeddingsNotSupported,
     LLMGateError,
     ModelNotFoundError,
     ProviderAPIError,
@@ -55,6 +66,8 @@ from llmgate.types import (
     Choice,
     CompletionRequest,
     CompletionResponse,
+    EmbeddingRequest,
+    EmbeddingResponse,
     FunctionDefinition,
     Message,
     StreamChunk,
@@ -63,11 +76,16 @@ from llmgate.types import (
     ToolDefinition,
 )
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __all__ = [
-    # Core API
+    # Completion API
     "completion",
     "acompletion",
+    "parse",
+    "aparse",
+    # Embeddings API
+    "embed",
+    "aembed",
     # Client
     "LLMGate",
     # Middleware
@@ -86,6 +104,8 @@ __all__ = [
     "FunctionDefinition",
     "ToolCall",
     "ToolDefinition",
+    "EmbeddingRequest",
+    "EmbeddingResponse",
     # Exceptions
     "LLMGateError",
     "ProviderError",
@@ -95,4 +115,5 @@ __all__ = [
     "ModelNotFoundError",
     "ConfigError",
     "StreamingNotSupported",
+    "EmbeddingsNotSupported",
 ]

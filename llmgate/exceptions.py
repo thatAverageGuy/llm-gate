@@ -14,7 +14,8 @@ Hierarchy:
     │   └── ProviderAPIError    other 4xx/5xx from the provider
     ├── ModelNotFoundError      unknown model string (no provider matched)
     ├── ConfigError             missing env var / bad config
-    └── StreamingNotSupported   stream=True before streaming is implemented
+    ├── StreamingNotSupported   stream=True before streaming is implemented
+    └── EmbeddingsNotSupported  provider does not offer an embeddings API
 """
 from __future__ import annotations
 
@@ -89,5 +90,21 @@ class StreamingNotSupported(LLMGateError):
     def __init__(self) -> None:
         super().__init__(
             "Streaming (stream=True) is not yet supported in llmgate v0.1. "
-            "Track progress at https://github.com/aaloosamosa/llm-gate."
+            "Track progress at https://github.com/thatAverageGuy/llm-gate."
+        )
+
+
+# ---------------------------------------------------------------------------
+# Embeddings
+# ---------------------------------------------------------------------------
+
+
+class EmbeddingsNotSupported(LLMGateError):
+    """The requested provider does not offer an embeddings API."""
+
+    def __init__(self, provider: str) -> None:
+        super().__init__(
+            f"Provider '{provider}' does not support embeddings. "
+            "Use OpenAI, Gemini, Azure, Cohere, Mistral, Ollama, or Bedrock.",
+            provider=provider,
         )
