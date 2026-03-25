@@ -33,7 +33,7 @@ class MistralProvider(BaseProvider):
 
     def __init__(self, api_key: str | None = None, **client_kwargs: Any) -> None:
         try:
-            from mistralai import Mistral  # noqa: PLC0415
+            from mistralai.client import Mistral  # noqa: PLC0415
         except ImportError as e:
             raise ImportError(
                 "mistralai package is required: pip install llmgate[mistral]"

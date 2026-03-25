@@ -242,7 +242,7 @@ async def _aembed_cohere(request: EmbeddingRequest, api_key: str | None) -> Embe
 
 def _embed_mistral(request: EmbeddingRequest, api_key: str | None) -> EmbeddingResponse:
     try:
-        from mistralai import Mistral  # noqa: PLC0415
+        from mistralai.client import Mistral  # noqa: PLC0415
     except ImportError as e:
         raise ImportError("mistralai package required: pip install mistralai") from e
 
