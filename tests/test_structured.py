@@ -321,19 +321,21 @@ class TestCompletionAPI:
         assert req.response_format is Movie
 
     def test_parse_returns_model_instance(self):
+        import sys
         from llmgate.completion import parse
         mock_resp = MagicMock()
         mock_resp.parsed = Movie(title="Test", year=2000, rating=7.0)
-        with patch("llmgate.completion.completion", return_value=mock_resp):
+        with patch.object(sys.modules["llmgate.completion"], "completion", return_value=mock_resp):
             result = parse("gpt-4o-mini", [], response_format=Movie)
         assert isinstance(result, Movie)
         assert result.title == "Test"
 
     def test_parse_raises_if_parsed_is_none(self):
+        import sys
         from llmgate.completion import parse
         mock_resp = MagicMock()
         mock_resp.parsed = None
         mock_resp.text = "some text"
-        with patch("llmgate.completion.completion", return_value=mock_resp):
+        with patch.object(sys.modules["llmgate.completion"], "completion", return_value=mock_resp):
             with pytest.raises(ValueError, match="no structured output"):
                 parse("gpt-4o-mini", [], response_format=Movie)
