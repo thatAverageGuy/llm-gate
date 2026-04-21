@@ -240,3 +240,55 @@ class EmbeddingResponse(BaseModel):
 
     usage: TokenUsage = Field(default_factory=TokenUsage)
     raw: Any = Field(default=None, exclude=True)
+
+
+# ---------------------------------------------------------------------------
+# Batch types
+# ---------------------------------------------------------------------------
+
+
+class BatchError(BaseModel):
+    """Error details for a single failed request within a batch operation."""
+
+    index: int
+    """Original index of the failed request in the input list."""
+
+    request: CompletionRequest
+    """The request that failed."""
+
+    error: str
+    """Human-readable error message."""
+
+    error_type: str
+    """Exception class name (e.g. 'RateLimitError', 'BatchTimeoutError')."""
+
+
+class BatchResult(BaseModel):
+    """Aggregated results from a :func:`~llmgate.batch.batch` or
+    :func:`~llmgate.batch.abatch` operation.
+
+    ``results`` preserves the original input order and contains ``None`` at
+    positions where a request failed.  Cross-reference with ``errors`` (which
+    carry the original ``index``) to identify which requests failed and why.
+    """
+
+    results: list[Optional[CompletionResponse]]
+    """Responses in input order.  ``None`` for every request that failed."""
+
+    errors: list[BatchError] = Field(default_factory=list)
+    """Error details for each failed request (empty when all succeeded)."""
+
+    successful: int
+    """Number of requests that completed successfully."""
+
+    failed: int
+    """Number of requests that raised an exception."""
+
+    total_tokens: int
+    """Sum of ``usage.total_tokens`` across all successful responses."""
+
+    @property
+    def success_rate(self) -> float:
+        """Fraction of requests that succeeded, in the range [0.0, 1.0]."""
+        total = self.successful + self.failed
+        return self.successful / total if total > 0 else 0.0

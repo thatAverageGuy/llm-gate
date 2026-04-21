@@ -198,3 +198,73 @@ class LLMGate:
         """Async version of :meth:`embed`."""
         merged = {**self._defaults, **kwargs}
         return await _aembed_fn(model, input, api_key=merged.pop("api_key", None), **merged)
+
+    # ------------------------------------------------------------------
+    # Batch
+    # ------------------------------------------------------------------
+
+    def batch(
+        self,
+        requests: list[Any],
+        *,
+        max_concurrency: int = 5,
+        fail_fast: bool = False,
+        timeout: float | None = None,
+    ) -> Any:
+        """Execute a batch of completion requests using this gate's middleware.
+
+        Wraps :func:`~llmgate.batch.batch`, injecting the gate's middleware
+        into every individual request.
+
+        Args:
+            requests:        List of :class:`~llmgate.types.CompletionRequest`
+                             objects or plain dicts.
+            max_concurrency: Max requests in flight simultaneously.
+            fail_fast:       Raise on the first error instead of collecting.
+            timeout:         Per-request timeout in seconds.
+
+        Returns:
+            :class:`~llmgate.types.BatchResult`
+        """
+        from llmgate.batch import batch as _batch  # noqa: PLC0415
+
+        return _batch(
+            requests,
+            max_concurrency=max_concurrency,
+            fail_fast=fail_fast,
+            middleware=self._middleware or None,
+            timeout=timeout,
+        )
+
+    async def abatch(
+        self,
+        requests: list[Any],
+        *,
+        max_concurrency: int = 5,
+        fail_fast: bool = False,
+        timeout: float | None = None,
+    ) -> Any:
+        """Async batch of completion requests using this gate's middleware.
+
+        Wraps :func:`~llmgate.batch.abatch`, injecting the gate's middleware
+        into every individual request.
+
+        Args:
+            requests:        List of :class:`~llmgate.types.CompletionRequest`
+                             objects or plain dicts.
+            max_concurrency: Max requests in flight simultaneously.
+            fail_fast:       Raise on the first error instead of collecting.
+            timeout:         Per-request timeout in seconds.
+
+        Returns:
+            :class:`~llmgate.types.BatchResult`
+        """
+        from llmgate.batch import abatch as _abatch  # noqa: PLC0415
+
+        return await _abatch(
+            requests,
+            max_concurrency=max_concurrency,
+            fail_fast=fail_fast,
+            middleware=self._middleware or None,
+            timeout=timeout,
+        )

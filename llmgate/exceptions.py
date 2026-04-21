@@ -15,7 +15,8 @@ Hierarchy:
     ├── ModelNotFoundError      unknown model string (no provider matched)
     ├── ConfigError             missing env var / bad config
     ├── StreamingNotSupported   stream=True before streaming is implemented
-    └── EmbeddingsNotSupported  provider does not offer an embeddings API
+    ├── EmbeddingsNotSupported  provider does not offer an embeddings API
+    └── BatchTimeoutError       a single request within a batch exceeded its timeout
 """
 from __future__ import annotations
 
@@ -108,3 +109,19 @@ class EmbeddingsNotSupported(LLMGateError):
             "Use OpenAI, Gemini, Azure, Cohere, Mistral, Ollama, or Bedrock.",
             provider=provider,
         )
+
+
+# ---------------------------------------------------------------------------
+# Batch
+# ---------------------------------------------------------------------------
+
+
+class BatchTimeoutError(LLMGateError):
+    """A single request within a batch exceeded its per-request timeout."""
+
+    def __init__(self, index: int, timeout: float) -> None:
+        super().__init__(
+            f"Batch request at index {index} timed out after {timeout}s."
+        )
+        self.index = index
+        self.timeout = timeout
