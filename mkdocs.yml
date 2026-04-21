@@ -1,0 +1,111 @@
+site_name: llmgate
+site_description: Lightweight, provider-agnostic Python library for calling LLMs — one API for OpenAI, Gemini, Anthropic, Groq, Mistral, Cohere, Azure, Bedrock & Ollama.
+site_url: https://thatAverageGuy.github.io/llm-gate
+repo_url: https://github.com/thatAverageGuy/llm-gate
+repo_name: thatAverageGuy/llm-gate
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  font:
+    text: Inter
+    code: JetBrains Mono
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quickstart.md
+    - Configuration: getting-started/configuration.md
+  - User Guide:
+    - Completions: guide/completions.md
+    - Vision & Images: guide/vision.md
+    - Streaming: guide/streaming.md
+    - Tool Calling: guide/tools.md
+    - Structured Outputs: guide/structured-outputs.md
+    - Embeddings: guide/embeddings.md
+    - Batch Completions: guide/batch.md
+    - Middleware: guide/middleware.md
+  - Providers:
+    - Overview: providers/index.md
+    - OpenAI: providers/openai.md
+    - Anthropic: providers/anthropic.md
+    - Google Gemini: providers/gemini.md
+    - Groq: providers/groq.md
+    - Mistral: providers/mistral.md
+    - Cohere: providers/cohere.md
+    - Azure OpenAI: providers/azure.md
+    - AWS Bedrock: providers/bedrock.md
+    - Ollama: providers/ollama.md
+  - Reference:
+    - Error Handling: reference/errors.md
+    - API Reference: reference/api.md
+    - Changelog: reference/changelog.md
+  - Recipes:
+    - Chatbot: recipes/chatbot.md
+    - FastAPI Integration: recipes/fastapi.md
+    - Custom Provider: recipes/custom-provider.md
+    - Migrating from LiteLLM: recipes/litellm-migration.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/thatAverageGuy/llm-gate
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/llmgate/
+  version:
+    provider: mike
+
+copyright: Copyright &copy; 2026 llmgate contributors — MIT License
