@@ -16,8 +16,10 @@ Hierarchy:
     ├── ConfigError             missing env var / bad config
     ├── StreamingNotSupported   stream=True before streaming is implemented
     ├── EmbeddingsNotSupported  provider does not offer an embeddings API
+    ├── VisionNotSupported      provider does not support image/vision inputs
     └── BatchTimeoutError       a single request within a batch exceeded its timeout
 """
+
 from __future__ import annotations
 
 
@@ -107,6 +109,22 @@ class EmbeddingsNotSupported(LLMGateError):
         super().__init__(
             f"Provider '{provider}' does not support embeddings. "
             "Use OpenAI, Gemini, Azure, Cohere, Mistral, Ollama, or Bedrock.",
+            provider=provider,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Vision
+# ---------------------------------------------------------------------------
+
+
+class VisionNotSupported(LLMGateError):
+    """The requested provider does not support image/vision inputs."""
+
+    def __init__(self, provider: str) -> None:
+        super().__init__(
+            f"Provider '{provider}' does not support vision/image inputs. "
+            "Use OpenAI, Anthropic, Gemini, Azure, Groq, Mistral, Bedrock, or Ollama.",
             provider=provider,
         )
 

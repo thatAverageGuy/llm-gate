@@ -10,12 +10,63 @@ interface regardless of which provider is under the hood.
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, Literal, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 
 if TYPE_CHECKING:
     pass
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+
+# ---------------------------------------------------------------------------
+# Vision / multimodal types
+# ---------------------------------------------------------------------------
+
+
+class ImageURL(BaseModel):
+    """A URL-based image reference (https:// or data: URI)."""
+
+    url: str
+    """Image URL (public HTTPS or base64 data URI of the form ``data:image/jpeg;base64,...``)."""
+
+    detail: Optional[Literal["auto", "low", "high"]] = None
+    """Resolution hint. Honoured by OpenAI / Azure; silently ignored by other providers."""
+
+
+class ImageBytes(BaseModel):
+    """An inline base64-encoded image."""
+
+    data: str
+    """Raw base64-encoded image bytes (no data-URI prefix)."""
+
+    mime_type: str
+    """MIME type, e.g. ``"image/jpeg"``, ``"image/png"``, ``"image/webp"``, ``"image/gif"``."""
+
+
+class TextPart(BaseModel):
+    """A plain-text segment within a multipart message."""
+
+    type: Literal["text"] = "text"
+    text: str
+
+
+class ImagePart(BaseModel):
+    """An image segment within a multipart message."""
+
+    type: Literal["image_url", "image_bytes"]
+    image_url: Optional[ImageURL] = None
+    """Set when ``type='image_url'``."""
+
+    image_bytes: Optional[ImageBytes] = None
+    """Set when ``type='image_bytes'``."""
+
+    @model_validator(mode="after")
+    def _validate_payload(self) -> "ImagePart":
+        if self.type == "image_url" and self.image_url is None:
+            raise ValueError("image_url is required when type='image_url'")
+        if self.type == "image_bytes" and self.image_bytes is None:
+            raise ValueError("image_bytes is required when type='image_bytes'")
+        return self
 
 
 # ---------------------------------------------------------------------------
@@ -57,11 +108,16 @@ class ToolCall(BaseModel):
 
 
 class Message(BaseModel):
-    """A single chat message (user / assistant / system / tool)."""
+    """A single chat message (user / assistant / system / tool).
+
+    ``content`` accepts either a plain string (text-only, the common case) or
+    a list of :class:`TextPart` / :class:`ImagePart` objects for multimodal
+    (vision) messages.  Existing text-only callers are fully unaffected.
+    """
 
     role: Literal["system", "user", "assistant", "tool"]
-    content: Optional[str] = None
-    """Message text. May be None for pure tool-call assistant messages."""
+    content: Optional[Union[str, list[Union[TextPart, ImagePart]]]] = None
+    """Message content — plain string *or* list of text/image parts."""
 
     # Tool-calling fields
     tool_calls: Optional[list[ToolCall]] = None
@@ -74,9 +130,15 @@ class Message(BaseModel):
     """Tool function name. Required by some providers on role='tool' messages."""
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialise to a plain dict (text-only; use provider vision helpers for images)."""
         d: dict[str, Any] = {"role": self.role}
         if self.content is not None:
-            d["content"] = self.content
+            # For text-only content, serialise directly; image parts are
+            # handled separately by the vision normaliser in each provider.
+            if isinstance(self.content, str):
+                d["content"] = self.content
+            else:
+                d["content"] = self.content  # pass list as-is (provider will re-serialise)
         if self.tool_calls is not None:
             d["tool_calls"] = [
                 {

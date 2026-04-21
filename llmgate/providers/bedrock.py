@@ -34,23 +34,26 @@ def _to_bedrock_messages(messages: list[Message]) -> tuple[list[dict], str | Non
     """Convert llmgate messages to Bedrock Converse format.
     Returns (messages, system_prompt).
     """
+    from llmgate import vision  # noqa: PLC0415
+
     system_prompt: str | None = None
     bedrock_msgs: list[dict] = []
 
     for m in messages:
         if m.role == "system":
-            system_prompt = m.content
+            system_prompt = m.content if isinstance(m.content, str) else None
             continue
 
         if m.role == "user":
-            bedrock_msgs.append({
-                "role": "user",
-                "content": [{"text": m.content or ""}],
-            })
+            content_blocks = vision.to_bedrock_content(m.content or "")
+            bedrock_msgs.append({"role": "user", "content": content_blocks})
         elif m.role == "assistant":
             content: list[dict] = []
             if m.content:
-                content.append({"text": m.content})
+                if isinstance(m.content, str):
+                    content.append({"text": m.content})
+                else:
+                    content.extend(vision.to_bedrock_content(m.content))
             if m.tool_calls:
                 for tc in m.tool_calls:
                     content.append({
@@ -67,7 +70,7 @@ def _to_bedrock_messages(messages: list[Message]) -> tuple[list[dict], str | Non
                 "content": [{
                     "toolResult": {
                         "toolUseId": m.tool_call_id or "",
-                        "content": [{"text": m.content or ""}],
+                        "content": [{"text": m.content or "" if isinstance(m.content, str) else ""}],
                         "status": "success",
                     }
                 }],

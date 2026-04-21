@@ -113,6 +113,12 @@ class CohereProvider(BaseProvider):
     # ------------------------------------------------------------------
 
     def _build_params(self, request: CompletionRequest) -> dict[str, Any]:
+        from llmgate.exceptions import VisionNotSupported  # noqa: PLC0415
+        # Cohere vision API is not yet stable — raise early if images present
+        for m in request.messages:
+            if not isinstance(m.content, str) and m.content is not None:
+                raise VisionNotSupported(self.name)
+
         model = self._strip_prefix(request.model)
         # For ClientV2 we use the messages array directly (OpenAI-compatible)
         msgs = []

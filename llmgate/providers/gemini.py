@@ -59,27 +59,38 @@ class GeminiProvider(BaseProvider):
         Convert llmgate messages to google-genai ``contents`` format.
 
         Handles tool results (role="tool") by injecting function_response parts
-        into a user turn.
+        into a user turn.  Image content in user messages is converted to
+        inline_data Parts via ``vision.to_gemini_parts()``.
 
         Returns:
             (system_instruction, contents_list)
         """
+        from llmgate import vision  # noqa: PLC0415
+
         system_instruction: str | None = None
         contents: list[dict[str, Any]] = []
 
         for msg in messages:
             if msg.role == "system":
-                system_instruction = msg.content
+                system_instruction = msg.content if isinstance(msg.content, str) else None
                 continue
 
             if msg.role == "user":
-                contents.append({"role": "user", "parts": [{"text": msg.content or ""}]})
+                if isinstance(msg.content, str) or msg.content is None:
+                    contents.append({"role": "user", "parts": [{"text": msg.content or ""}]})
+                else:
+                    # Multipart (vision) — use Part objects
+                    parts = vision.to_gemini_parts(msg.content)
+                    contents.append({"role": "user", "parts": parts})
                 continue
 
             if msg.role == "assistant":
-                parts: list[dict[str, Any]] = []
+                parts: list[Any] = []
                 if msg.content:
-                    parts.append({"text": msg.content})
+                    if isinstance(msg.content, str):
+                        parts.append({"text": msg.content})
+                    else:
+                        parts.extend(vision.to_gemini_parts(msg.content))
                 if msg.tool_calls:
                     for tc in msg.tool_calls:
                         parts.append({

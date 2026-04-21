@@ -57,8 +57,10 @@ class OllamaProvider(BaseProvider):
     # ------------------------------------------------------------------
 
     def _build_params(self, request: CompletionRequest) -> dict[str, Any]:
+        from llmgate import vision  # noqa: PLC0415
         model = self._strip_prefix(request.model)
-        messages = [m.to_dict() for m in request.messages]
+        # Ollama messages use an images field for multimodal — use vision helper
+        messages = [vision.to_ollama_message(m.role, m.content) for m in request.messages]
 
         params: dict[str, Any] = {
             "model": model,

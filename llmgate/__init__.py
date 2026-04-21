@@ -55,6 +55,7 @@ from llmgate.exceptions import (
     ProviderError,
     RateLimitError,
     StreamingNotSupported,
+    VisionNotSupported,
 )
 from llmgate.gate import LLMGate
 from llmgate.middleware import (
@@ -73,14 +74,18 @@ from llmgate.types import (
     EmbeddingRequest,
     EmbeddingResponse,
     FunctionDefinition,
+    ImageBytes,
+    ImagePart,
+    ImageURL,
     Message,
     StreamChunk,
+    TextPart,
     TokenUsage,
     ToolCall,
     ToolDefinition,
 )
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 __all__ = [
     # Completion API
     "completion",
@@ -115,6 +120,11 @@ __all__ = [
     "EmbeddingResponse",
     "BatchResult",
     "BatchError",
+    # Vision types
+    "ImageURL",
+    "ImageBytes",
+    "TextPart",
+    "ImagePart",
     # Exceptions
     "LLMGateError",
     "ProviderError",
@@ -125,5 +135,6 @@ __all__ = [
     "ConfigError",
     "StreamingNotSupported",
     "EmbeddingsNotSupported",
+    "VisionNotSupported",
     "BatchTimeoutError",
 ]

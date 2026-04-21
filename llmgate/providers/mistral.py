@@ -52,10 +52,17 @@ class MistralProvider(BaseProvider):
     # ------------------------------------------------------------------
 
     def _build_params(self, request: CompletionRequest) -> dict[str, Any]:
+        from llmgate import vision  # noqa: PLC0415
         model = self._strip_prefix(request.model)
+        messages = []
+        for m in request.messages:
+            d = m.to_dict()
+            if not isinstance(m.content, str) and m.content is not None:
+                d["content"] = vision.to_mistral_content(m.content)
+            messages.append(d)
         params: dict[str, Any] = {
             "model": model,
-            "messages": [m.to_dict() for m in request.messages],
+            "messages": messages,
             **request.extra_kwargs,
         }
         if request.max_tokens is not None:

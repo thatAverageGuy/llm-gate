@@ -257,6 +257,75 @@ resp.usage        # TokenUsage
 
 ---
 
+## Vision / Multimodal
+
+Pass images alongside text using `TextPart` and `ImagePart` content blocks. Works with any vision-capable model — the right wire format is applied per provider automatically.
+
+```python
+from llmgate import completion
+from llmgate.types import ImageURL, ImageBytes, TextPart, ImagePart, Message
+import base64
+
+# ── URL-based image (OpenAI, Anthropic, Groq, Mistral, Azure) ──────────────
+resp = completion(
+    "gpt-4o-mini",
+    messages=[{
+        "role": "user",
+        "content": [
+            {"type": "text",      "text": "What's in this image?"},
+            {"type": "image_url", "image_url": {"url": "https://example.com/photo.jpg"}},
+        ],
+    }],
+)
+print(resp.text)
+
+# ── Base64 image (all providers) ───────────────────────────────────────────
+with open("photo.jpg", "rb") as f:
+    b64 = base64.b64encode(f.read()).decode()
+
+resp = completion(
+    "claude-opus-4-7",
+    messages=[Message(
+        role="user",
+        content=[
+            ImagePart(type="image_bytes", image_bytes=ImageBytes(data=b64, mime_type="image/jpeg")),
+            TextPart(text="Describe this image."),
+        ],
+    )],
+)
+print(resp.text)
+
+# ── detail hint (OpenAI / Azure only, silently ignored by others) ──────────
+resp = completion(
+    "gpt-4o",
+    messages=[{
+        "role": "user",
+        "content": [
+            {"type": "text",      "text": "Any text in this image?"},
+            {"type": "image_url", "image_url": {"url": "https://...", "detail": "high"}},
+        ],
+    }],
+)
+```
+
+**Vision support by provider:**
+
+| Provider | URL images | Base64 / bytes | Notes |
+|---|---|---|---|
+| OpenAI | ✅ | ✅ | `detail` param (`auto`/`low`/`high`) supported |
+| Azure OpenAI | ✅ | ✅ | Identical to OpenAI |
+| Anthropic | ✅ | ✅ | Up to 100 images per request |
+| Gemini | ✅\* | ✅ | \*URL images fetched client-side and sent inline |
+| Groq | ✅ | ✅ | Model must be `llama-4-scout-17b` (vision preview) |
+| Mistral | ✅ | ✅ | `image_url` sent as plain string (handled automatically) |
+| Bedrock | ✅\* | ✅ | \*URL images fetched client-side; raw bytes sent to Converse API |
+| Ollama | ❌ | ✅ | base64 only; URL images fetched client-side automatically |
+| Cohere | — | — | Raises `VisionNotSupported` (API not yet stable) |
+
+> **Note:** `image_url` content parts accept both `https://` URLs and `data:image/jpeg;base64,...` data URIs.
+
+---
+
 ## Batch Completions
 
 Execute multiple completion requests **in parallel** with configurable concurrency control.
@@ -363,6 +432,7 @@ from llmgate.exceptions import (
     ProviderAPIError,       # other provider errors
     ModelNotFoundError,     # unknown model / no provider matched
     EmbeddingsNotSupported, # provider doesn't have an embeddings API
+    VisionNotSupported,     # provider doesn't support image inputs
 )
 
 try:
@@ -411,7 +481,7 @@ These features are shipped ✅ or planned 🗓️:
 | Structured outputs (Pydantic `response_format`) | ✅ v0.3 |
 | Embeddings API (`embed()`, `aembed()`) | ✅ v0.3 |
 | **Batch completions** — parallel requests with concurrency control | ✅ v0.4 |
-| **Vision / multimodal** — image inputs (GPT-4V, Gemini Vision, Claude) | 🗓️ planned |
+| **Vision / multimodal** — image inputs (8 providers: URL + base64) | ✅ v0.5 |
 | **Automatic tool-call loop** — orchestrate multi-step tool use | 🗓️ planned |
 | **Token counting** — local tokenisation before sending | 🗓️ planned |
 | **Prompt templates** — reusable, parameterised prompt builders | 🗓️ planned |

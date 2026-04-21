@@ -57,14 +57,17 @@ class AnthropicProvider(BaseProvider):
         Handles:
           - role="tool"  → user message with tool_result content block
           - role="assistant" with tool_calls → assistant message with tool_use blocks
+          - Multipart content → vision.to_anthropic_content() content blocks
           - All others  → standard text messages
         """
+        from llmgate import vision  # noqa: PLC0415
+
         system_parts: list[str] = []
         result: list[dict[str, Any]] = []
 
         for msg in messages:
             if msg.role == "system":
-                system_parts.append(msg.content or "")
+                system_parts.append(msg.content or "" if isinstance(msg.content, str) else "")
                 continue
 
             if msg.role == "tool":
@@ -74,7 +77,7 @@ class AnthropicProvider(BaseProvider):
                     "content": [{
                         "type": "tool_result",
                         "tool_use_id": msg.tool_call_id or "",
-                        "content": msg.content or "",
+                        "content": msg.content or "" if isinstance(msg.content, str) else "",
                     }],
                 })
                 continue
@@ -83,7 +86,12 @@ class AnthropicProvider(BaseProvider):
                 # Assistant requesting tool calls — build mixed content blocks
                 content_blocks: list[dict[str, Any]] = []
                 if msg.content:
-                    content_blocks.append({"type": "text", "text": msg.content})
+                    if isinstance(msg.content, str):
+                        content_blocks.append({"type": "text", "text": msg.content})
+                    else:
+                        anthropic_content = vision.to_anthropic_content(msg.content)
+                        if isinstance(anthropic_content, list):
+                            content_blocks.extend(anthropic_content)
                 for tc in msg.tool_calls:
                     content_blocks.append({
                         "type": "tool_use",
@@ -94,8 +102,12 @@ class AnthropicProvider(BaseProvider):
                 result.append({"role": "assistant", "content": content_blocks})
                 continue
 
-            # Standard user/assistant text message
-            result.append({"role": msg.role, "content": msg.content or ""})
+            # Standard user/assistant text or vision message
+            if isinstance(msg.content, str) or msg.content is None:
+                result.append({"role": msg.role, "content": msg.content or ""})
+            else:
+                serialized = vision.to_anthropic_content(msg.content)
+                result.append({"role": msg.role, "content": serialized})
 
         system = "\n".join(system_parts) if system_parts else None
         return system, result
