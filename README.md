@@ -257,6 +257,70 @@ resp.usage        # TokenUsage
 
 ---
 
+## Batch Completions
+
+Execute multiple completion requests **in parallel** with configurable concurrency control.
+
+```python
+from llmgate import batch, abatch
+from llmgate.types import CompletionRequest, Message
+
+# Simple usage with dicts
+results = batch([
+    {"model": "gpt-4o-mini",              "messages": [{"role": "user", "content": "What is 1+1?"}]},
+    {"model": "groq/llama-3.1-8b-instant", "messages": [{"role": "user", "content": "What is 2+2?"}]},
+    {"model": "gemini-2.5-flash-lite",     "messages": [{"role": "user", "content": "What is 3+3?"}]},
+], max_concurrency=3)
+
+# Iterate successful responses (same order as input)
+for resp in results.results:
+    if resp is not None:
+        print(resp.text)
+
+# Check aggregate stats
+print(f"{results.successful}/{results.successful + results.failed} succeeded")
+print(f"Total tokens: {results.total_tokens}")
+print(f"Success rate: {results.success_rate:.1%}")
+
+# Inspect failures
+for err in results.errors:
+    print(f"Request {err.index} failed ({err.error_type}): {err.error}")
+
+# Async version
+results = await abatch(requests, max_concurrency=10)
+
+# Fail immediately on first error instead of collecting
+results = batch(requests, fail_fast=True)
+
+# Apply middleware per-request
+from llmgate.middleware import RetryMiddleware
+results = batch(requests, middleware=[RetryMiddleware(max_retries=2)])
+```
+
+**`BatchResult` fields:**
+
+```python
+results.results        # list[CompletionResponse | None] — same order as input
+results.errors         # list[BatchError] — details for each failed request
+results.successful     # int — count of successful requests
+results.failed         # int — count of failed requests
+results.total_tokens   # int — aggregate token usage across successes
+results.success_rate   # float — fraction that succeeded (0.0 – 1.0)
+```
+
+**`LLMGate` batch methods** use the gate's configured middleware automatically:
+
+```python
+from llmgate import LLMGate
+from llmgate.middleware import RetryMiddleware, LoggingMiddleware
+
+gate = LLMGate(middleware=[RetryMiddleware(max_retries=3), LoggingMiddleware()])
+results = gate.batch(requests, max_concurrency=5)
+results = await gate.abatch(requests, max_concurrency=5)
+```
+
+---
+
 ## Middleware
 
 Apply logging, retry, caching, and rate-limiting as composable middleware:
@@ -346,7 +410,7 @@ These features are shipped ✅ or planned 🗓️:
 | 5 additional providers (Mistral, Cohere, Azure, Bedrock, Ollama) | ✅ v0.2 |
 | Structured outputs (Pydantic `response_format`) | ✅ v0.3 |
 | Embeddings API (`embed()`, `aembed()`) | ✅ v0.3 |
-| **Batch completions** — parallel requests with concurrency control | 🗓️ planned |
+| **Batch completions** — parallel requests with concurrency control | ✅ v0.4 |
 | **Vision / multimodal** — image inputs (GPT-4V, Gemini Vision, Claude) | 🗓️ planned |
 | **Automatic tool-call loop** — orchestrate multi-step tool use | 🗓️ planned |
 | **Token counting** — local tokenisation before sending | 🗓️ planned |

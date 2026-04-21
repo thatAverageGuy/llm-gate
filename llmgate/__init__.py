@@ -41,10 +41,12 @@ With middleware::
 """
 from __future__ import annotations
 
+from llmgate.batch import abatch, batch
 from llmgate.completion import acompletion, aparse, completion, parse
 from llmgate.embeddings import aembed, embed
 from llmgate.exceptions import (
     AuthError,
+    BatchTimeoutError,
     ConfigError,
     EmbeddingsNotSupported,
     LLMGateError,
@@ -63,6 +65,8 @@ from llmgate.middleware import (
     RetryMiddleware,
 )
 from llmgate.types import (
+    BatchError,
+    BatchResult,
     Choice,
     CompletionRequest,
     CompletionResponse,
@@ -76,13 +80,16 @@ from llmgate.types import (
     ToolDefinition,
 )
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __all__ = [
     # Completion API
     "completion",
     "acompletion",
     "parse",
     "aparse",
+    # Batch API
+    "batch",
+    "abatch",
     # Embeddings API
     "embed",
     "aembed",
@@ -106,6 +113,8 @@ __all__ = [
     "ToolDefinition",
     "EmbeddingRequest",
     "EmbeddingResponse",
+    "BatchResult",
+    "BatchError",
     # Exceptions
     "LLMGateError",
     "ProviderError",
@@ -116,4 +125,5 @@ __all__ = [
     "ConfigError",
     "StreamingNotSupported",
     "EmbeddingsNotSupported",
+    "BatchTimeoutError",
 ]
