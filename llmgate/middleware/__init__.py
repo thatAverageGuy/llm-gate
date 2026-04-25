@@ -1,7 +1,7 @@
 """
 llmgate.middleware
 ~~~~~~~~~~~~~~~~~~
-Built-in middleware for logging, caching, retrying, and rate limiting.
+Built-in middleware for logging, caching, retrying, rate limiting, and fallback.
 
 Quick reference::
 
@@ -10,6 +10,7 @@ Quick reference::
         RetryMiddleware,
         CacheMiddleware,
         RateLimitMiddleware,
+        FallbackMiddleware,
     )
     from llmgate import LLMGate
 
@@ -21,6 +22,7 @@ Quick reference::
 """
 from llmgate.middleware.base import BaseMiddleware
 from llmgate.middleware.cache import CacheMiddleware
+from llmgate.middleware.fallback import FallbackMiddleware
 from llmgate.middleware.logging import LoggingMiddleware
 from llmgate.middleware.ratelimit import RateLimitMiddleware
 from llmgate.middleware.retry import RetryMiddleware
@@ -31,4 +33,6 @@ __all__ = [
     "RetryMiddleware",
     "CacheMiddleware",
     "RateLimitMiddleware",
+    "FallbackMiddleware",
 ]
+

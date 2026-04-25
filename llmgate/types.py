@@ -238,6 +238,14 @@ class CompletionResponse(BaseModel):
     parsed: Optional[Any] = Field(default=None, exclude=True)
     """Validated Pydantic model instance when ``response_format`` was supplied."""
 
+    fallback_attempts: list[str] = Field(default_factory=list)
+    """Models that were tried (and failed) before this response was produced.
+
+    Empty list when the first model in the chain succeeded.  Populated when
+    fallback routing kicked in — e.g. ``["gpt-4o-mini"]`` means the first model
+    failed and the second succeeded.  Useful for observability / logging.
+    """
+
     # Convenience shortcuts
     @property
     def text(self) -> str:

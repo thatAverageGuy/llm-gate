@@ -654,4 +654,4 @@ class TestPackageExports:
 
     def test_version_bumped(self):
         import llmgate
-        assert llmgate.__version__ == "0.5.0"
+        assert llmgate.__version__ == "0.6.0"

@@ -30,6 +30,7 @@ from __future__ import annotations
 from typing import Any, AsyncIterator, Iterator
 
 from llmgate.completion import (
+    _DEFAULT_FALLBACK_ON,
     _build_request,
     _get_or_create_provider,
 )
@@ -84,10 +85,14 @@ class LLMGate:
     def __init__(
         self,
         middleware: list[BaseMiddleware] | None = None,
+        fallback_chain: list[str] | None = None,
+        fallback_on: tuple[type[Exception], ...] = _DEFAULT_FALLBACK_ON,
         **provider_defaults: Any,
     ) -> None:
         self._middleware: list[BaseMiddleware] = middleware or []
         self._defaults = provider_defaults
+        self._fallback_chain = fallback_chain
+        self._fallback_on = fallback_on
 
     # ------------------------------------------------------------------
     # Sync
@@ -95,14 +100,38 @@ class LLMGate:
 
     def completion(
         self,
-        model: str,
-        messages: list[dict[str, Any] | Message],
+        model: str | list[str] | None = None,
+        messages: list[dict[str, Any] | Message] | None = None,
         **kwargs: Any,
     ) -> CompletionResponse:
-        """Sync completion with middleware stack applied."""
+        """Sync completion with middleware stack applied.
+
+        When ``fallback_chain`` was set on this gate, *model* is optional and
+        the chain overrides any single model string passed here.
+        """
+        if messages is None:
+            raise ValueError("messages is required")
+
         merged = {**self._defaults, **kwargs}
-        request = _build_request(model, messages, stream=False, kwargs=merged)
-        provider = _get_or_create_provider(model, merged.get("provider"))
+        effective_models: list[str] | None = self._fallback_chain
+
+        if effective_models:
+            # Full fallback loop — middleware applied per-candidate
+            from llmgate.fallback import _try_models_sync  # noqa: PLC0415
+            return _try_models_sync(
+                effective_models,
+                messages,
+                fallback_on=self._fallback_on,
+                middleware=self._middleware or None,
+                **merged,
+            )
+
+        # Single-model path
+        single_model = model if isinstance(model, str) else (model[0] if isinstance(model, list) else None)
+        if single_model is None:
+            raise ValueError("Provide a model string or set fallback_chain on the gate.")
+        request = _build_request(single_model, messages, stream=False, kwargs=merged)
+        provider = _get_or_create_provider(single_model, merged.get("provider"))
 
         def _inner(req: CompletionRequest) -> CompletionResponse:
             return provider.complete(req)
@@ -138,14 +167,36 @@ class LLMGate:
 
     async def acompletion(
         self,
-        model: str,
-        messages: list[dict[str, Any] | Message],
+        model: str | list[str] | None = None,
+        messages: list[dict[str, Any] | Message] | None = None,
         **kwargs: Any,
     ) -> CompletionResponse:
-        """Async completion with middleware stack applied."""
+        """Async completion with middleware stack applied.
+
+        When ``fallback_chain`` was set on this gate, *model* is optional and
+        the chain overrides any single model string passed here.
+        """
+        if messages is None:
+            raise ValueError("messages is required")
+
         merged = {**self._defaults, **kwargs}
-        request = _build_request(model, messages, stream=False, kwargs=merged)
-        provider = _get_or_create_provider(model, merged.get("provider"))
+        effective_models: list[str] | None = self._fallback_chain
+
+        if effective_models:
+            from llmgate.fallback import _try_models_async  # noqa: PLC0415
+            return await _try_models_async(
+                effective_models,
+                messages,
+                fallback_on=self._fallback_on,
+                middleware=self._middleware or None,
+                **merged,
+            )
+
+        single_model = model if isinstance(model, str) else (model[0] if isinstance(model, list) else None)
+        if single_model is None:
+            raise ValueError("Provide a model string or set fallback_chain on the gate.")
+        request = _build_request(single_model, messages, stream=False, kwargs=merged)
+        provider = _get_or_create_provider(single_model, merged.get("provider"))
 
         async def _inner(req: CompletionRequest) -> CompletionResponse:
             return await provider.acomplete(req)

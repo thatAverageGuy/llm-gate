@@ -9,7 +9,13 @@ Public API:
     acompletion(model, messages, **kwargs)  -> CompletionResponse  (stream=False, async)
                                            -> AsyncIterator[StreamChunk] (stream=True, async)
 
-Provider resolution order:
+``model`` accepts either a single string *or* a list of strings.  When a list
+is passed, the library tries each model in order and falls back automatically
+on ``RateLimitError``, ``ProviderAPIError``, and ``AuthError`` (configurable
+via the ``fallback_on`` parameter).  The first successful response is returned
+with ``CompletionResponse.fallback_attempts`` populated.
+
+Provider resolution order (single-model path):
 1. If ``provider`` kwarg is given, use that provider by name.
 2. Otherwise, iterate registered providers and find one whose ``supports()``
    returns True for the given model string.
@@ -26,7 +32,8 @@ if TYPE_CHECKING:
     from llmgate.middleware.base import BaseMiddleware
 
 from llmgate.base import BaseProvider
-from llmgate.exceptions import ConfigError, ModelNotFoundError
+from llmgate.exceptions import AuthError, ConfigError, ModelNotFoundError, ProviderAPIError, RateLimitError
+
 
 # Core providers (always available — hard deps)
 from llmgate.providers.anthropic import AnthropicProvider
@@ -39,6 +46,13 @@ from llmgate.types import (
 )
 
 T = TypeVar("T")
+
+#: Default exception types that trigger a fallback to the next model.
+_DEFAULT_FALLBACK_ON: tuple[type[Exception], ...] = (
+    RateLimitError,
+    ProviderAPIError,
+    AuthError,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -199,68 +213,103 @@ def _build_request(
 # ---------------------------------------------------------------------------
 
 _MsgList = list[Union[dict[str, str], Message]]
+_ModelArg = Union[str, list[str]]
 
 
 @overload
 def completion(
-    model: str,
+    model: _ModelArg,
     messages: _MsgList,
     *,
     provider: str | None = ...,
     api_key: str | None = ...,
     stream: Literal[True],
     middleware: list[BaseMiddleware] | None = ...,
+    fallback_on: tuple[type[Exception], ...] = ...,
     **kwargs: Any,
 ) -> Iterator[StreamChunk]: ...
 
 
 @overload
 def completion(
-    model: str,
+    model: _ModelArg,
     messages: _MsgList,
     *,
     provider: str | None = ...,
     api_key: str | None = ...,
     stream: Literal[False] = ...,
     middleware: list[BaseMiddleware] | None = ...,
+    fallback_on: tuple[type[Exception], ...] = ...,
     **kwargs: Any,
 ) -> CompletionResponse: ...
 
 
 def completion(
-    model: str,
+    model: _ModelArg,
     messages: _MsgList,
     *,
     provider: str | None = None,
     api_key: str | None = None,
     stream: bool = False,
     middleware: list[BaseMiddleware] | None = None,
+    fallback_on: tuple[type[Exception], ...] = _DEFAULT_FALLBACK_ON,
     **kwargs: Any,
 ) -> CompletionResponse | Iterator[StreamChunk]:
     """
     Perform a synchronous chat completion.
 
     Args:
-        model:    Model name. Use ``groq/`` prefix for Groq models.
-        messages: List of message dicts (``{"role": ..., "content": ...}``)
-                  or :class:`~llmgate.types.Message` instances.
-        provider: Force a specific provider by name (``"openai"``, ``"gemini"``,
-                  ``"anthropic"``, ``"groq"``). Optional — auto-detected otherwise.
-        api_key:  Override the API key for this call. Defaults to the relevant
-                  environment variable.
-        stream:   If True, returns an ``Iterator[StreamChunk]`` instead of a
-                  ``CompletionResponse``. Iterate the result to receive deltas.
-        **kwargs: Extra parameters forwarded to the provider
-                  (``max_tokens``, ``temperature``, ``top_p``, etc.).
+        model:       Model name string *or* a list of model strings for
+                     automatic fallback routing.  When a list is given, each
+                     model is tried in order; the first success is returned.
+                     ``stream=True`` is not supported with a model list.
+        messages:    List of message dicts (``{"role": ..., "content": ...}``)
+                     or :class:`~llmgate.types.Message` instances.
+        provider:    Force a specific provider by name (``"openai"``,
+                     ``"gemini"``, ``"anthropic"``, ``"groq"``).
+                     Ignored when *model* is a list.
+        api_key:     Override the API key for this call.
+        stream:      If ``True``, returns an ``Iterator[StreamChunk]``.
+                     Cannot be ``True`` when *model* is a list.
+        middleware:  Middleware stack applied to every attempt (including
+                     fallback candidates when *model* is a list).
+        fallback_on: Exception types that trigger fallback to the next model.
+                     Defaults to ``(RateLimitError, ProviderAPIError, AuthError)``.
+                     Only used when *model* is a list.
+        **kwargs:    Extra parameters forwarded to the provider
+                     (``max_tokens``, ``temperature``, ``top_p``, etc.).
 
     Returns:
-        :class:`~llmgate.types.CompletionResponse` when ``stream=False`` (default).
+        :class:`~llmgate.types.CompletionResponse` when ``stream=False``.
         ``Iterator[StreamChunk]`` when ``stream=True``.
 
     Raises:
-        :class:`~llmgate.exceptions.ModelNotFoundError`: Unknown model.
+        :class:`~llmgate.exceptions.AllProvidersFailedError`: All models in
+            the list failed with errors in *fallback_on*.
+        :class:`~llmgate.exceptions.ModelNotFoundError`: Unknown model string.
         :class:`~llmgate.exceptions.ProviderError`: Provider returned an error.
+        ``ValueError``: ``stream=True`` combined with a model list.
     """
+    # ---- Multi-model fallback path ----
+    if isinstance(model, list):
+        if stream:
+            raise ValueError(
+                "stream=True cannot be used with a model list. "
+                "Streaming fallback is not supported in v0.6. "
+                "Pass a single model string when stream=True."
+            )
+        from llmgate.fallback import _try_models_sync  # noqa: PLC0415
+        return _try_models_sync(
+            model,
+            messages,
+            fallback_on=fallback_on,
+            middleware=middleware,
+            provider=provider,
+            api_key=api_key,
+            **kwargs,
+        )
+
+    # ---- Single-model path (unchanged behaviour) ----
     provider_inst = _get_provider(model, provider, api_key)
     request = _build_request(model, messages, stream, kwargs)
 
@@ -286,46 +335,70 @@ def completion(
 
 @overload
 async def acompletion(
-    model: str,
+    model: _ModelArg,
     messages: _MsgList,
     *,
     provider: str | None = ...,
     api_key: str | None = ...,
     stream: Literal[True],
     middleware: list[BaseMiddleware] | None = ...,
+    fallback_on: tuple[type[Exception], ...] = ...,
     **kwargs: Any,
 ) -> AsyncIterator[StreamChunk]: ...
 
 
 @overload
 async def acompletion(
-    model: str,
+    model: _ModelArg,
     messages: _MsgList,
     *,
     provider: str | None = ...,
     api_key: str | None = ...,
     stream: Literal[False] = ...,
     middleware: list[BaseMiddleware] | None = ...,
+    fallback_on: tuple[type[Exception], ...] = ...,
     **kwargs: Any,
 ) -> CompletionResponse: ...
 
 
 async def acompletion(
-    model: str,
+    model: _ModelArg,
     messages: _MsgList,
     *,
     provider: str | None = None,
     api_key: str | None = None,
     stream: bool = False,
     middleware: list[BaseMiddleware] | None = None,
+    fallback_on: tuple[type[Exception], ...] = _DEFAULT_FALLBACK_ON,
     **kwargs: Any,
 ) -> CompletionResponse | AsyncIterator[StreamChunk]:
     """
     Perform an asynchronous chat completion.
 
-    Same signature as :func:`completion` but returns a coroutine.
+    Same signature as :func:`completion` — accepts a single model string *or*
+    a list of model strings for automatic fallback routing.
     When ``stream=True``, returns an ``AsyncIterator[StreamChunk]``.
     """
+    # ---- Multi-model fallback path ----
+    if isinstance(model, list):
+        if stream:
+            raise ValueError(
+                "stream=True cannot be used with a model list. "
+                "Streaming fallback is not supported in v0.6. "
+                "Pass a single model string when stream=True."
+            )
+        from llmgate.fallback import _try_models_async  # noqa: PLC0415
+        return await _try_models_async(
+            model,
+            messages,
+            fallback_on=fallback_on,
+            middleware=middleware,
+            provider=provider,
+            api_key=api_key,
+            **kwargs,
+        )
+
+    # ---- Single-model path (unchanged behaviour) ----
     provider_inst = _get_provider(model, provider, api_key)
     request = _build_request(model, messages, stream, kwargs)
 

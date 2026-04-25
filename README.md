@@ -390,6 +390,91 @@ results = await gate.abatch(requests, max_concurrency=5)
 
 ---
 
+## Fallback / Routing
+
+Pass a **list of model strings** to automatically try each one in order. If a model fails with a rate-limit, provider error, or auth error, the next model in the chain is tried transparently.
+
+```python
+from llmgate import completion
+
+# Try gpt-4o-mini → fall back to groq → fall back to gemini
+resp = completion(
+    model=["gpt-4o-mini", "groq/llama-3.1-8b-instant", "gemini-2.5-flash-lite"],
+    messages=[{"role": "user", "content": "Hello!"}],
+)
+print(resp.text)
+print(resp.provider)           # → whichever model succeeded
+print(resp.fallback_attempts)  # → ["gpt-4o-mini"] if first model failed
+```
+
+### App-level config via `LLMGate`
+
+```python
+from llmgate import LLMGate
+from llmgate.middleware import RetryMiddleware
+
+gate = LLMGate(
+    fallback_chain=["gpt-4o-mini", "groq/llama-3.1-8b-instant", "gemini-2.5-flash-lite"],
+    middleware=[RetryMiddleware(max_retries=2)],  # retries each model before fallback
+)
+
+# model arg is optional when fallback_chain is set
+resp = gate.completion(messages=[{"role": "user", "content": "Hello!"}])
+resp = await gate.acompletion(messages=[{"role": "user", "content": "Hello!"}])
+```
+
+> **Note:** When `fallback_chain` is set on the gate, `RetryMiddleware` (and other middleware) applies to **each individual model** in the chain — so each candidate is retried before the next one is tried.
+
+### Composable via `FallbackMiddleware`
+
+```python
+from llmgate import LLMGate
+from llmgate.middleware import RetryMiddleware, FallbackMiddleware
+
+gate = LLMGate(middleware=[
+    RetryMiddleware(max_retries=2),
+    FallbackMiddleware(
+        models=["groq/llama-3.1-8b-instant", "gemini-2.5-flash-lite"],
+    ),
+])
+resp = gate.completion("gpt-4o-mini", messages)
+```
+
+### Custom `fallback_on`
+
+```python
+from llmgate import completion
+from llmgate.exceptions import RateLimitError
+
+# Only fall back on rate limits — auth errors propagate immediately
+resp = completion(
+    model=["gpt-4o-mini", "groq/llama-3.1-8b-instant"],
+    messages=messages,
+    fallback_on=(RateLimitError,),
+)
+```
+
+**Default `fallback_on`:** `(RateLimitError, ProviderAPIError, AuthError)`
+
+### Handling total failure
+
+```python
+from llmgate.exceptions import AllProvidersFailedError
+
+try:
+    resp = completion(
+        model=["gpt-4o-mini", "groq/llama-3.1-8b-instant"],
+        messages=messages,
+    )
+except AllProvidersFailedError as e:
+    for model, exc in e.errors:
+        print(f"  {model}: {exc}")
+```
+
+> **Note:** `stream=True` cannot be combined with a model list — streaming fallback is planned for v0.7.
+
+---
+
 ## Middleware
 
 Apply logging, retry, caching, and rate-limiting as composable middleware:
@@ -482,6 +567,7 @@ These features are shipped ✅ or planned 🗓️:
 | Embeddings API (`embed()`, `aembed()`) | ✅ v0.3 |
 | **Batch completions** — parallel requests with concurrency control | ✅ v0.4 |
 | **Vision / multimodal** — image inputs (8 providers: URL + base64) | ✅ v0.5 |
+| **Fallback / routing** — multi-model chains, `AllProvidersFailedError` | ✅ v0.6 |
 | **Automatic tool-call loop** — orchestrate multi-step tool use | 🗓️ planned |
 | **Token counting** — local tokenisation before sending | 🗓️ planned |
 | **Prompt templates** — reusable, parameterised prompt builders | 🗓️ planned |

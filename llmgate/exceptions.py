@@ -143,3 +143,28 @@ class BatchTimeoutError(LLMGateError):
         )
         self.index = index
         self.timeout = timeout
+
+
+# ---------------------------------------------------------------------------
+# Fallback / routing
+# ---------------------------------------------------------------------------
+
+
+class AllProvidersFailedError(LLMGateError):
+    """Every model in the fallback chain raised an error.
+
+    ``errors`` is a list of ``(model_string, exception)`` pairs, one per
+    attempted model, in the order they were tried.  Inspect it to understand
+    exactly why each candidate failed::
+
+        except AllProvidersFailedError as e:
+            for model, exc in e.errors:
+                print(f"{model}: {exc}")
+    """
+
+    def __init__(self, errors: list[tuple[str, Exception]]) -> None:
+        model_errs = "; ".join(f"{m}: {e}" for m, e in errors)
+        super().__init__(
+            f"All providers in the fallback chain failed. Errors: [{model_errs}]"
+        )
+        self.errors: list[tuple[str, Exception]] = errors

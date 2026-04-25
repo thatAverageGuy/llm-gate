@@ -45,6 +45,7 @@ from llmgate.batch import abatch, batch
 from llmgate.completion import acompletion, aparse, completion, parse
 from llmgate.embeddings import aembed, embed
 from llmgate.exceptions import (
+    AllProvidersFailedError,
     AuthError,
     BatchTimeoutError,
     ConfigError,
@@ -61,6 +62,7 @@ from llmgate.gate import LLMGate
 from llmgate.middleware import (
     BaseMiddleware,
     CacheMiddleware,
+    FallbackMiddleware,
     LoggingMiddleware,
     RateLimitMiddleware,
     RetryMiddleware,
@@ -85,7 +87,7 @@ from llmgate.types import (
     ToolDefinition,
 )
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 __all__ = [
     # Completion API
     "completion",
@@ -106,6 +108,7 @@ __all__ = [
     "RetryMiddleware",
     "CacheMiddleware",
     "RateLimitMiddleware",
+    "FallbackMiddleware",
     # Types
     "Message",
     "CompletionRequest",
@@ -137,4 +140,5 @@ __all__ = [
     "EmbeddingsNotSupported",
     "VisionNotSupported",
     "BatchTimeoutError",
+    "AllProvidersFailedError",
 ]
