@@ -4,6 +4,21 @@ All notable changes to llmgate are documented here.
 
 ---
 
+## v0.6.0 — 2026-04-25
+
+### ✨ Added — Fallback / Routing
+
+- **`completion(model=[...])` / `acompletion(model=[...])`** — pass a list of model strings for automatic multi-provider fallback routing. First successful response wins.
+- **`LLMGate(fallback_chain=[...], fallback_on=(...))`** — app-level fallback config; all middleware (retry, logging, etc.) applies per-candidate before advancing to the next model.
+- **`FallbackMiddleware`** — composable middleware for drop-in fallback on existing middleware stacks.
+- **`AllProvidersFailedError`** — raised when all models in the chain fail; carries `errors: list[tuple[str, Exception]]` for per-model diagnostics.
+- **`CompletionResponse.fallback_attempts`** — new `list[str]` field indicating which models were tried (and failed) before this response. Empty on first-try success.
+- Default `fallback_on`: `(RateLimitError, ProviderAPIError, AuthError)` — all three trigger fallback; configurable per-call or per-gate.
+- `stream=True` + model list raises `ValueError` (streaming fallback planned for v0.7).
+- 29 new mocked unit tests; live-tested against Groq, Anthropic, and Gemini.
+
+---
+
 ## v0.5.0 — 2026-04-21
 
 ### ✨ Added — Vision / Multimodal Support

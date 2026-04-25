@@ -89,6 +89,26 @@ RateLimitMiddleware(
 )
 ```
 
+### `FallbackMiddleware`
+
+Tries the primary model through the full middleware chain, then falls back to alternative models on transient errors.
+
+```python
+from llmgate.middleware import RetryMiddleware, FallbackMiddleware
+
+gate = LLMGate(middleware=[
+    RetryMiddleware(max_retries=2),          # retries primary model first
+    FallbackMiddleware(
+        models=["groq/llama-3.1-8b-instant", "gemini-2.0-flash"],
+        fallback_on=(RateLimitError, ProviderAPIError, AuthError),  # default
+    ),
+])
+resp = gate.completion("gpt-4o-mini", messages)
+print(resp.fallback_attempts)  # ["gpt-4o-mini"] if primary failed
+```
+
+See the [Fallback & Routing guide](fallback.md) for the full API including `LLMGate(fallback_chain=[...])` and the top-level `completion(model=[...])` surface.
+
 ---
 
 ## Writing a custom middleware

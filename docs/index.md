@@ -10,6 +10,10 @@
 
     Pass images alongside text — URL or base64 — with automatic per-provider serialization.
 
+-   :arrows_counterclockwise: **Fallback & Routing**
+
+    Pass a list of models — llmgate tries each in order and falls back automatically on rate limits or errors.
+
 -   :package: **Zero boilerplate**
 
     Consistent response shape, unified error types, and Pydantic v2 models throughout.
@@ -52,7 +56,8 @@ llmgate solves this with a **thin, stable abstraction**: one function, one respo
 | **Structured outputs** | Pass any Pydantic model, get back a validated instance |
 | **Embeddings** | 7 providers, batched, async |
 | **Batch** | Parallel completions with configurable concurrency |
-| **Middleware** | Retry, cache, logging, rate-limit — composable |
+| **Fallback & Routing** | `model=[...]` list — automatic multi-provider failover with `AllProvidersFailedError` |
+| **Middleware** | Retry, cache, logging, rate-limit, fallback — composable |
 
 ---
 

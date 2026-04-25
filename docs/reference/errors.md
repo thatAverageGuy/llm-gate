@@ -15,7 +15,8 @@ LLMGateError
 ├── StreamingNotSupported   — provider doesn't support streaming
 ├── EmbeddingsNotSupported  — provider doesn't have an embeddings API
 ├── VisionNotSupported      — provider doesn't support image inputs
-└── BatchTimeoutError       — a single batch request timed out
+├── BatchTimeoutError       — a single batch request timed out
+└── AllProvidersFailedError — every model in a fallback chain failed
 ```
 
 ---
@@ -62,6 +63,7 @@ except LLMGateError as e:
 | `e.model` | `ModelNotFoundError` | The unrecognised model string |
 | `e.index` | `BatchTimeoutError` | Index of the failing request in the batch |
 | `e.timeout` | `BatchTimeoutError` | Timeout value in seconds |
+| `e.errors` | `AllProvidersFailedError` | `list[tuple[str, Exception]]` — `(model, exc)` per failed candidate |
 
 ---
 
@@ -83,6 +85,28 @@ def completion_with_retry(model, messages, retries=3, **kwargs):
 ```
 
 Or use the built-in `RetryMiddleware` — it handles this automatically.
+
+---
+
+## Fallback routing pattern
+
+Rather than writing a try/except loop yourself, use the built-in fallback routing:
+
+```python
+from llmgate import completion
+from llmgate.exceptions import AllProvidersFailedError
+
+try:
+    resp = completion(
+        model=["gpt-4o-mini", "groq/llama-3.1-8b-instant", "gemini-2.0-flash"],
+        messages=messages,
+    )
+except AllProvidersFailedError as e:
+    for model, exc in e.errors:
+        print(f"  {model}: {type(exc).__name__}: {exc}")
+```
+
+See the [Fallback & Routing guide](../guide/fallback.md) for the full API.
 
 ---
 
