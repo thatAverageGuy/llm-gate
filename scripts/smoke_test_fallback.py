@@ -24,8 +24,8 @@ if _env_file.exists():
             k, _, v = line.partition("=")
             os.environ.setdefault(k.strip(), v.strip())
 
-from llmgate import LLMGate, completion
-from llmgate.exceptions import AllProvidersFailedError, AuthError, RateLimitError
+from llmgate import LLMGate, completion  # noqa: E402
+from llmgate.exceptions import AllProvidersFailedError, AuthError, RateLimitError  # noqa: E402
 
 MESSAGES = [{"role": "user", "content": "Reply with exactly: fallback works"}]
 
@@ -107,7 +107,7 @@ try:
     )
     print("  ❌ Should have raised AllProvidersFailedError!")
 except AllProvidersFailedError as e:
-    print(f"  ✅ AllProvidersFailedError raised correctly")
+    print("  ✅ AllProvidersFailedError raised correctly")
     print(f"  ✅ Number of errors recorded: {len(e.errors)}")
     for model, exc in e.errors:
         print(f"     - {model}: {type(exc).__name__}")
