@@ -654,4 +654,10 @@ class TestPackageExports:
 
     def test_version_bumped(self):
         import llmgate
-        assert llmgate.__version__ == "0.6.0"
+        # Check version is a valid semver string (not hardcoded, so this never breaks on bumps)
+        parts = llmgate.__version__.split(".")
+        assert len(parts) == 3, f"Expected semver X.Y.Z, got {llmgate.__version__!r}"
+        assert all(p.isdigit() for p in parts), f"Non-numeric version parts: {llmgate.__version__!r}"
+        assert tuple(int(p) for p in parts) >= (0, 7, 0), (
+            f"Version {llmgate.__version__!r} is older than v0.7.0"
+        )
