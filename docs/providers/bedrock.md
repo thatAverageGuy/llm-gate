@@ -41,8 +41,31 @@ completion("bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0", messages=[{
 
 ---
 
+## Embeddings
+
+Bedrock embeddings are parallelised across a thread pool (the real-time API is single-text only):
+
+```python
+from llmgate import embed
+
+# Titan Text Embeddings V2 — L2-normalized by default (best for cosine similarity)
+resp = embed("bedrock/amazon.titan-embed-text-v2:0", chunks)
+
+# Custom dimensions (256 / 512 / 1024):
+resp = embed("bedrock/amazon.titan-embed-text-v2:0", chunks, dimensions=512)
+
+# Disable normalization:
+resp = embed("bedrock/amazon.titan-embed-text-v2:0", text, normalize=False)
+
+# Cohere on Bedrock — always set input_type:
+resp = embed("bedrock/cohere.embed-english-v3", chunks, input_type="search_document")
+resp = embed("bedrock/cohere.embed-english-v3", query,  input_type="search_query")
+```
+
+---
+
 ## Notes
 
 - Uses the Converse API — consistent across all Bedrock models.
 - Tool calls work via `toolUse` / `toolResult` Converse blocks, handled automatically.
-- Embeddings supported via Titan models: `bedrock/amazon.titan-embed-text-v2:0`.
+- Embeddings: multiple inputs are parallelised via a thread pool and results are returned in original order.

@@ -47,14 +47,22 @@ Shorthand for `completion(..., response_format=Model).parsed`.
 from llmgate import embed
 
 resp = embed(
-    model,          # str
-    input,          # str | list[str]
+    model,                  # str — model with optional provider prefix
+    input,                  # str | list[str] — batch in one call
     *,
-    dimensions=None,    # int | None (OpenAI / Azure / Gemini)
-    api_key=None,
+    api_key=None,           # str | None
+    dimensions=None,        # int | None  — OpenAI, Azure, Gemini, Mistral, Bedrock Titan V2
+    task_type=None,         # str | None  — Gemini: "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY" | ...
+    title=None,             # str | None  — Gemini: document title (task_type="RETRIEVAL_DOCUMENT")
+    input_type=None,        # str | None  — Cohere/Bedrock-Cohere: "search_document" | "search_query" | ...
+    truncate=None,          # str | None  — Cohere: "NONE"|"START"|"END"; Ollama: "true"|"false"
+    encoding_format=None,   # str | None  — OpenAI/Azure/Mistral: "float" | "base64"
+    user=None,              # str | None  — OpenAI/Azure end-user identifier
     **extra_kwargs,
 ) -> EmbeddingResponse
 ```
+
+`aembed()` is the async variant — identical signature, returns `Coroutine`.
 
 ---
 

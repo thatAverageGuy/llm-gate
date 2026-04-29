@@ -23,14 +23,33 @@ completion("cohere/command-a-03-2025", messages)
 
 ## Embeddings
 
-Cohere has excellent embedding models:
+Cohere has excellent embedding models with task-aware vectors.
+
+!!! important "Always set `input_type`"
+    The default (`search_document`) is wrong for query embedding. Use the correct type for production RAG.
 
 ```python
 from llmgate import embed
 
-resp = embed("cohere/embed-english-v3.0", "Hello world")
-resp = embed("cohere/embed-multilingual-v3.0", "Bonjour monde")
+# Embedding corpus documents:
+resp = embed("cohere/embed-english-v3.0", chunks,
+             input_type="search_document")
+
+# Embedding a search query:
+resp = embed("cohere/embed-english-v3.0", query,
+             input_type="search_query")
+
+# Multilingual:
+resp = embed("cohere/embed-multilingual-v3.0", texts,
+             input_type="search_document")
+
+# Truncation strategy for long inputs:
+resp = embed("cohere/embed-english-v3.0", long_text,
+             input_type="search_document",
+             truncate="END")   # "NONE" (error) | "START" | "END"
 ```
+
+Supported `input_type` values: `"search_document"`, `"search_query"`, `"classification"`, `"clustering"`.
 
 ---
 

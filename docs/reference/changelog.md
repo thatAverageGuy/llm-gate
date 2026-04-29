@@ -4,6 +4,41 @@ All notable changes to llmgate are documented here.
 
 ---
 
+## v0.7.0 — 2026-04-30
+
+### ⚡ Performance — Embedding Batching
+
+- **Gemini**: fixed N-call loop → single `embed_content(contents=[list])` call (was making one API call per chunk)
+- **Ollama**: fixed N-call loop → single `embed(input=[list])` call
+- **Bedrock**: parallel `invoke_model` calls via `ThreadPoolExecutor` (real-time API has no true batch endpoint); results returned in original order
+
+### ✨ Added — Provider-Specific Embedding Params
+
+New first-class parameters on `embed()` / `aembed()` and `EmbeddingRequest`:
+
+| Param | Providers | Description |
+|---|---|---|
+| `task_type` | Gemini | Optimisation hint: `RETRIEVAL_DOCUMENT`, `RETRIEVAL_QUERY`, `SEMANTIC_SIMILARITY`, `CLASSIFICATION`, `CLUSTERING`, `QUESTION_ANSWERING`, `FACT_VERIFICATION` |
+| `title` | Gemini | Document title — improves quality when `task_type="RETRIEVAL_DOCUMENT"` |
+| `input_type` | Cohere, Bedrock-Cohere | Purpose hint: `search_document`, `search_query`, `classification`, `clustering` |
+| `truncate` | Cohere, Ollama | Overflow strategy — Cohere: `NONE`/`START`/`END`; Ollama: `true`/`false` |
+| `encoding_format` | OpenAI, Azure, Mistral | Output encoding: `float` or `base64` |
+| `user` | OpenAI, Azure | End-user identifier for abuse monitoring |
+
+Additional provider improvements:
+- **Gemini**: `task_type` + `title` + `dimensions` now pass through `EmbedContentConfig`; response parsing cleaned up
+- **Cohere**: `input_type` was hardcoded to `"search_document"` — now user-controlled; `extra_kwargs.pop()` mutation bug fixed
+- **Bedrock**: `normalize` (default `True`) and `dimensions` forwarded into Titan V2 request body; Cohere-on-Bedrock gets `input_type` + `truncate`
+- **Mistral**: fixed import path (`mistralai` not `mistralai.client`); `dimensions` maps to `output_dimension` for Matryoshka reduction; `encoding_format` forwarded
+- **OpenAI / Azure**: `encoding_format` and `user` now explicit params; `kwargs.pop()` side-effect fixed → `kwargs.get()`
+
+### 🧪 Tests
+
+- Embedding test suite expanded: 23 → 53 tests (all mocked, no API keys needed in CI)
+- Live-tested against Gemini (`gemini-embedding-001`): batch of 5, `task_type`, `title`, `dimensions=128`
+
+---
+
 ## v0.6.0 — 2026-04-25
 
 ### ✨ Added — Fallback / Routing

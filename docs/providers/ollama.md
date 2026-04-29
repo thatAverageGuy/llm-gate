@@ -54,8 +54,15 @@ completion("ollama/llava", messages=[{
 ```python
 from llmgate import embed
 
+# Single or batch — ONE call regardless of input size
 resp = embed("ollama/nomic-embed-text", "Hello world")
-resp = embed("ollama/mxbai-embed-large", "Hello world")
+resp = embed("ollama/mxbai-embed-large", ["chunk one", "chunk two", "chunk three"])
+
+# Truncation behaviour (default: truncate silently):
+resp = embed("ollama/nomic-embed-text", text, truncate="false")  # raise error on overflow
+
+# Keep model resident in memory between calls:
+resp = embed("ollama/nomic-embed-text", texts, keep_alive="1h")
 ```
 
 ---
