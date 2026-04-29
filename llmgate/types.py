@@ -295,7 +295,68 @@ class EmbeddingRequest(BaseModel):
     """Text or list of texts to embed. A list enables batch embedding in one call."""
 
     dimensions: Optional[int] = None
-    """Requested output dimensionality (supported by OpenAI, Gemini, Azure)."""
+    """
+    Requested output dimensionality.
+
+    Supported by: OpenAI (text-embedding-3 only), Azure, Gemini, Mistral
+    (``output_dimension``), Bedrock Titan V2 (256 / 512 / 1024).
+    """
+
+    task_type: Optional[str] = None
+    """
+    Embedding optimisation hint — **Gemini only**.
+
+    Valid values: ``"RETRIEVAL_DOCUMENT"``, ``"RETRIEVAL_QUERY"``,
+    ``"SEMANTIC_SIMILARITY"``, ``"CLASSIFICATION"``, ``"CLUSTERING"``,
+    ``"QUESTION_ANSWERING"``, ``"FACT_VERIFICATION"``.
+
+    Using the correct task type meaningfully improves retrieval quality in RAG
+    pipelines.  Not supported on the legacy ``models/embedding-001`` model.
+    """
+
+    title: Optional[str] = None
+    """
+    Document title — **Gemini only**, only applicable when
+    ``task_type="RETRIEVAL_DOCUMENT"``.
+
+    Providing a title improves the quality of document embeddings.
+    """
+
+    input_type: Optional[str] = None
+    """
+    Embedding purpose hint — **Cohere only**.
+
+    Valid values: ``"search_document"`` (default), ``"search_query"``,
+    ``"classification"``, ``"clustering"``.
+
+    **Important:** Always set this correctly — using ``"search_document"``
+    for query vectors (or vice-versa) degrades retrieval quality.
+    """
+
+    truncate: Optional[str] = None
+    """
+    How to handle inputs that exceed the model's context window.
+
+    * **Cohere**: ``"NONE"`` (error, default), ``"START"``, ``"END"``.
+    * **Ollama**: ``True`` (truncate silently, default) or ``False`` (error).
+
+    Pass a string for Cohere, a boolean-as-string (``"true"`` / ``"false"``)
+    or let ``extra_kwargs`` override for Ollama.
+    """
+
+    encoding_format: Optional[str] = None
+    """
+    Output encoding — **OpenAI / Azure / Mistral**.
+
+    ``"float"`` (default) or ``"base64"`` (smaller wire payload; you must
+    decode the base64 bytes yourself).
+    """
+
+    user: Optional[str] = None
+    """
+    End-user identifier for abuse monitoring — **OpenAI / Azure only**.
+    Forwarded verbatim as the ``user`` parameter.
+    """
 
     extra_kwargs: dict[str, Any] = Field(default_factory=dict)
 
