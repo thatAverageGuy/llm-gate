@@ -138,9 +138,7 @@ class BatchTimeoutError(LLMGateError):
     """A single request within a batch exceeded its per-request timeout."""
 
     def __init__(self, index: int, timeout: float) -> None:
-        super().__init__(
-            f"Batch request at index {index} timed out after {timeout}s."
-        )
+        super().__init__(f"Batch request at index {index} timed out after {timeout}s.")
         self.index = index
         self.timeout = timeout
 

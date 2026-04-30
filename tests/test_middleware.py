@@ -1,6 +1,7 @@
 """
 Tests for the middleware system — all mocked, no real API calls.
 """
+
 from __future__ import annotations
 
 import logging
@@ -18,13 +19,18 @@ from llmgate.middleware import (
 )
 from llmgate.middleware.base import BaseMiddleware
 from llmgate.types import (
-    Choice, CompletionRequest, CompletionResponse, Message, TokenUsage,
+    Choice,
+    CompletionRequest,
+    CompletionResponse,
+    Message,
+    TokenUsage,
 )
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _req(model: str = "gpt-4o-mini") -> CompletionRequest:
     return CompletionRequest(
@@ -38,7 +44,13 @@ def _resp(model: str = "gpt-4o-mini", text: str = "Hi!") -> CompletionResponse:
         id="test-id",
         model=model,
         provider="openai",
-        choices=[Choice(index=0, message=Message(role="assistant", content=text), finish_reason="stop")],
+        choices=[
+            Choice(
+                index=0,
+                message=Message(role="assistant", content=text),
+                finish_reason="stop",
+            )
+        ],
         usage=TokenUsage(prompt_tokens=5, completion_tokens=2, total_tokens=7),
     )
 
@@ -50,6 +62,7 @@ def _resp(model: str = "gpt-4o-mini", text: str = "Hi!") -> CompletionResponse:
 
 class _ConcreteMiddleware(BaseMiddleware):
     """Simple pass-through middleware for testing."""
+
     def handle(self, request, call_next):
         return call_next(request)
 
@@ -65,13 +78,18 @@ class TestBaseMiddleware:
     @pytest.mark.asyncio
     async def test_ahandle_defaults_to_passthrough(self):
         """Default ahandle delegates to call_next without blocking."""
+
         class SyncMW(BaseMiddleware):
             def handle(self, request, call_next):
                 return call_next(request)
+
         mw = SyncMW()
         req = _req()
         expected = _resp()
-        async def _async_next(_r): return expected
+
+        async def _async_next(_r):
+            return expected
+
         result = await mw.ahandle(req, _async_next)
         assert result is expected
 
@@ -103,8 +121,10 @@ class TestLoggingMiddleware:
     def test_logs_error_and_reraises(self, caplog):
         mw = LoggingMiddleware(level="DEBUG")
         req = _req()
+
         def _raise(_r):
             raise ProviderAPIError("boom", provider="openai")
+
         with caplog.at_level(logging.DEBUG, logger="llmgate"):
             with pytest.raises(ProviderAPIError):
                 mw.handle(req, _raise)
@@ -124,7 +144,10 @@ class TestLoggingMiddleware:
         mw = LoggingMiddleware(level="DEBUG")
         req = _req()
         resp = _resp()
-        async def _next(_r): return resp
+
+        async def _next(_r):
+            return resp
+
         with caplog.at_level(logging.DEBUG, logger="llmgate"):
             result = await mw.ahandle(req, _next)
         assert result is resp
@@ -140,9 +163,11 @@ class TestRetryMiddleware:
     def test_no_retry_on_success(self):
         mw = RetryMiddleware(max_retries=3)
         calls = []
+
         def _next(r):
             calls.append(1)
             return _resp()
+
         mw.handle(_req(), _next)
         assert len(calls) == 1
 
@@ -150,11 +175,13 @@ class TestRetryMiddleware:
         monkeypatch.setattr("time.sleep", lambda _: None)
         mw = RetryMiddleware(max_retries=2, backoff_factor=0.0)
         calls = []
+
         def _next(r):
             calls.append(1)
             if len(calls) < 3:
                 raise RateLimitError("429", provider="groq")
             return _resp()
+
         result = mw.handle(_req(), _next)
         assert len(calls) == 3
         assert result.text == "Hi!"
@@ -162,8 +189,10 @@ class TestRetryMiddleware:
     def test_raises_after_max_retries(self, monkeypatch):
         monkeypatch.setattr("time.sleep", lambda _: None)
         mw = RetryMiddleware(max_retries=2, backoff_factor=0.0)
+
         def _next(r):
             raise RateLimitError("429", provider="groq")
+
         with pytest.raises(RateLimitError):
             mw.handle(_req(), _next)
 
@@ -171,22 +200,30 @@ class TestRetryMiddleware:
         monkeypatch.setattr("time.sleep", lambda _: None)
         mw = RetryMiddleware(max_retries=3, backoff_factor=0.0)
         calls = []
+
         def _next(r):
             calls.append(1)
-            raise ProviderAPIError("400 bad request", provider="openai", status_code=400)
+            raise ProviderAPIError(
+                "400 bad request", provider="openai", status_code=400
+            )
+
         with pytest.raises(ProviderAPIError):
             mw.handle(_req(), _next)
         assert len(calls) == 1  # no retries for 400
 
     def test_retry_on_5xx(self, monkeypatch):
         monkeypatch.setattr("time.sleep", lambda _: None)
-        mw = RetryMiddleware(max_retries=2, backoff_factor=0.0, retry_on_provider_errors=True)
+        mw = RetryMiddleware(
+            max_retries=2, backoff_factor=0.0, retry_on_provider_errors=True
+        )
         calls = []
+
         def _next(r):
             calls.append(1)
             if len(calls) < 2:
                 raise ProviderAPIError("500", provider="openai", status_code=500)
             return _resp()
+
         result = mw.handle(_req(), _next)
         assert len(calls) == 2
         assert result.text == "Hi!"
@@ -195,11 +232,13 @@ class TestRetryMiddleware:
     async def test_async_retries(self):
         mw = RetryMiddleware(max_retries=2, backoff_factor=0.0)
         calls = []
+
         async def _next(r):
             calls.append(1)
             if len(calls) < 2:
                 raise RateLimitError("429", provider="groq")
             return _resp()
+
         await mw.ahandle(_req(), _next)
         assert len(calls) == 2
 
@@ -213,9 +252,11 @@ class TestCacheMiddleware:
     def test_cache_hit_skips_provider(self):
         cache = CacheMiddleware(ttl=60)
         calls = []
+
         def _next(r):
             calls.append(1)
             return _resp()
+
         # First call — miss
         r1 = cache.handle(_req(), _next)
         # Second call — hit
@@ -226,9 +267,11 @@ class TestCacheMiddleware:
     def test_cache_miss_after_ttl(self, monkeypatch):
         cache = CacheMiddleware(ttl=0.01)
         calls = []
+
         def _next(r):
             calls.append(1)
             return _resp()
+
         cache.handle(_req(), _next)
         time.sleep(0.02)  # expire
         cache.handle(_req(), _next)
@@ -242,27 +285,36 @@ class TestCacheMiddleware:
             messages=[Message(role="user", content="hello")],
             stream=True,
         )
+
         def _next(r):
             calls.append(1)
             return _resp()
+
         cache.handle(req, _next)
         cache.handle(req, _next)
         assert len(calls) == 2  # not cached
 
     def test_tools_not_cached(self):
         from llmgate.types import FunctionDefinition, ToolDefinition
+
         cache = CacheMiddleware(ttl=60)
         calls = []
         req = CompletionRequest(
             model="gpt-4o-mini",
             messages=[Message(role="user", content="hello")],
-            tools=[ToolDefinition(function=FunctionDefinition(
-                name="f", description="d", parameters={}
-            ))],
+            tools=[
+                ToolDefinition(
+                    function=FunctionDefinition(
+                        name="f", description="d", parameters={}
+                    )
+                )
+            ],
         )
+
         def _next(r):
             calls.append(1)
             return _resp()
+
         cache.handle(req, _next)
         cache.handle(req, _next)
         assert len(calls) == 2  # not cached
@@ -271,9 +323,11 @@ class TestCacheMiddleware:
         cache = CacheMiddleware(ttl=60, maxsize=2)
         models = ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"]
         call_count = []
+
         def _next(r):
             call_count.append(1)
             return _resp(model=r.model)
+
         for m in models:
             cache.handle(_req(m), _next)
         assert cache.size == 2  # oldest evicted
@@ -281,9 +335,11 @@ class TestCacheMiddleware:
     def test_clear(self):
         cache = CacheMiddleware(ttl=60)
         calls = []
+
         def _next(r):
             calls.append(1)
             return _resp()
+
         cache.handle(_req(), _next)
         cache.clear()
         cache.handle(_req(), _next)
@@ -293,9 +349,11 @@ class TestCacheMiddleware:
     async def test_async_cache_hit(self):
         cache = CacheMiddleware(ttl=60)
         calls = []
+
         async def _next(r):
             calls.append(1)
             return _resp()
+
         r1 = await cache.ahandle(_req(), _next)
         r2 = await cache.ahandle(_req(), _next)
         assert len(calls) == 1
@@ -323,7 +381,10 @@ class TestRateLimitMiddleware:
     @pytest.mark.asyncio
     async def test_async_raises_when_exceeded(self):
         mw = RateLimitMiddleware(requests_per_minute=1, burst=1, raise_on_limit=True)
-        async def _next(r): return _resp()
+
+        async def _next(r):
+            return _resp()
+
         await mw.ahandle(_req(), _next)
         with pytest.raises(RateLimitError):
             await mw.ahandle(_req(), _next)
@@ -362,6 +423,7 @@ class TestMiddlewareChain:
     def test_gate_completion_with_middleware(self):
         """LLMGate.completion runs middleware and reaches provider."""
         from llmgate.gate import LLMGate
+
         touched = []
 
         class TouchMW(BaseMiddleware):

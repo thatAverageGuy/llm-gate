@@ -9,6 +9,7 @@ All external SDK calls are mocked.  We test:
   3. Per-provider message serialization with image content
   4. VisionNotSupported raised for Cohere
 """
+
 from __future__ import annotations
 
 import base64
@@ -35,7 +36,9 @@ def _make_image_url_part(url: str, detail: str | None = None) -> ImagePart:
 
 
 def _make_image_bytes_part(data: str = JPEG_B64, mime: str = "image/jpeg") -> ImagePart:
-    return ImagePart(type="image_bytes", image_bytes=ImageBytes(data=data, mime_type=mime))
+    return ImagePart(
+        type="image_bytes", image_bytes=ImageBytes(data=data, mime_type=mime)
+    )
 
 
 def _make_text_part(text: str = "What's in this image?") -> TextPart:
@@ -110,7 +113,10 @@ class TestMessage:
         assert msg.content is None
 
     def test_multipart_content(self):
-        parts = [_make_text_part("Describe this"), _make_image_url_part("https://x.com/a.jpg")]
+        parts = [
+            _make_text_part("Describe this"),
+            _make_image_url_part("https://x.com/a.jpg"),
+        ]
         msg = Message(role="user", content=parts)
         assert isinstance(msg.content, list)
         assert len(msg.content) == 2
@@ -245,14 +251,18 @@ class TestToBedrockContent:
         assert result[0] == {"text": "Hello"}
 
     def test_image_bytes_block(self):
-        result = vision.to_bedrock_content([_make_image_bytes_part(JPEG_B64, "image/jpeg")])
+        result = vision.to_bedrock_content(
+            [_make_image_bytes_part(JPEG_B64, "image/jpeg")]
+        )
         block = result[0]
         assert "image" in block
         assert block["image"]["format"] == "jpeg"
         assert isinstance(block["image"]["source"]["bytes"], bytes)
 
     def test_unknown_mime_defaults_to_jpeg(self):
-        result = vision.to_bedrock_content([_make_image_bytes_part(JPEG_B64, "image/unknown")])
+        result = vision.to_bedrock_content(
+            [_make_image_bytes_part(JPEG_B64, "image/unknown")]
+        )
         assert result[0]["image"]["format"] == "jpeg"
 
 
@@ -268,13 +278,19 @@ class TestToOllamaMessage:
         assert "images" not in msg
 
     def test_image_bytes_extracted(self):
-        parts = [_make_text_part("What?"), _make_image_bytes_part(JPEG_B64, "image/jpeg")]
+        parts = [
+            _make_text_part("What?"),
+            _make_image_bytes_part(JPEG_B64, "image/jpeg"),
+        ]
         msg = vision.to_ollama_message("user", parts)
         assert msg["images"] == [JPEG_B64]
         assert msg["content"] == "What?"
 
     def test_multiple_images(self):
-        parts = [_make_image_bytes_part(JPEG_B64), _make_image_bytes_part(PNG_B64, "image/png")]
+        parts = [
+            _make_image_bytes_part(JPEG_B64),
+            _make_image_bytes_part(PNG_B64, "image/png"),
+        ]
         msg = vision.to_ollama_message("user", parts)
         assert len(msg["images"]) == 2
 
@@ -305,6 +321,7 @@ def _make_openai_response(text: str = "An image.") -> MagicMock:
 class TestOpenAIVision:
     def test_url_image(self):
         from llmgate.providers.openai import OpenAIProvider
+
         with patch("openai.OpenAI") as mock_cls, patch("openai.AsyncOpenAI"):
             client = mock_cls.return_value
             client.chat.completions.create.return_value = _make_openai_response()
@@ -315,10 +332,14 @@ class TestOpenAIVision:
             provider.name = "openai"
 
             from llmgate.types import CompletionRequest
-            parts = [_make_text_part("What's in this image?"), _make_image_url_part("https://x.com/img.jpg")]
-            req = CompletionRequest(model="gpt-4o-mini", messages=[
-                Message(role="user", content=parts)
-            ])
+
+            parts = [
+                _make_text_part("What's in this image?"),
+                _make_image_url_part("https://x.com/img.jpg"),
+            ]
+            req = CompletionRequest(
+                model="gpt-4o-mini", messages=[Message(role="user", content=parts)]
+            )
             resp = provider.complete(req)
             assert resp.text == "An image."
 
@@ -330,6 +351,7 @@ class TestOpenAIVision:
 
     def test_base64_image(self):
         from llmgate.providers.openai import OpenAIProvider
+
         with patch("openai.OpenAI") as mock_cls, patch("openai.AsyncOpenAI"):
             client = mock_cls.return_value
             client.chat.completions.create.return_value = _make_openai_response()
@@ -340,10 +362,14 @@ class TestOpenAIVision:
             provider.name = "openai"
 
             from llmgate.types import CompletionRequest
-            parts = [_make_image_bytes_part(JPEG_B64, "image/jpeg"), _make_text_part("Describe")]
-            req = CompletionRequest(model="gpt-4o-mini", messages=[
-                Message(role="user", content=parts)
-            ])
+
+            parts = [
+                _make_image_bytes_part(JPEG_B64, "image/jpeg"),
+                _make_text_part("Describe"),
+            ]
+            req = CompletionRequest(
+                model="gpt-4o-mini", messages=[Message(role="user", content=parts)]
+            )
             provider.complete(req)
             call_args = client.chat.completions.create.call_args
             messages = call_args[1]["messages"] if call_args[1] else call_args[0][0]
@@ -353,9 +379,12 @@ class TestOpenAIVision:
     def test_str_content_unaffected(self):
         """Regression: plain text messages still work."""
         from llmgate.providers.openai import OpenAIProvider
+
         with patch("openai.OpenAI") as mock_cls, patch("openai.AsyncOpenAI"):
             client = mock_cls.return_value
-            client.chat.completions.create.return_value = _make_openai_response("Hello!")
+            client.chat.completions.create.return_value = _make_openai_response(
+                "Hello!"
+            )
             provider = OpenAIProvider.__new__(OpenAIProvider)
             provider._openai = MagicMock()
             provider._client = client
@@ -363,9 +392,10 @@ class TestOpenAIVision:
             provider.name = "openai"
 
             from llmgate.types import CompletionRequest
-            req = CompletionRequest(model="gpt-4o-mini", messages=[
-                Message(role="user", content="Hello!")
-            ])
+
+            req = CompletionRequest(
+                model="gpt-4o-mini", messages=[Message(role="user", content="Hello!")]
+            )
             resp = provider.complete(req)
             assert resp.text == "Hello!"
 
@@ -385,7 +415,11 @@ class TestAnthropicVision:
 
     def test_url_image(self):
         from llmgate.providers.anthropic import AnthropicProvider
-        with patch("anthropic.Anthropic") as mock_cls, patch("anthropic.AsyncAnthropic"):
+
+        with (
+            patch("anthropic.Anthropic") as mock_cls,
+            patch("anthropic.AsyncAnthropic"),
+        ):
             client = mock_cls.return_value
             client.messages.create.return_value = self._make_response()
             provider = AnthropicProvider.__new__(AnthropicProvider)
@@ -395,10 +429,14 @@ class TestAnthropicVision:
             provider.name = "anthropic"
 
             from llmgate.types import CompletionRequest
-            parts = [_make_image_url_part("https://x.com/img.jpg"), _make_text_part("Describe")]
-            req = CompletionRequest(model="claude-opus-4-7", messages=[
-                Message(role="user", content=parts)
-            ])
+
+            parts = [
+                _make_image_url_part("https://x.com/img.jpg"),
+                _make_text_part("Describe"),
+            ]
+            req = CompletionRequest(
+                model="claude-opus-4-7", messages=[Message(role="user", content=parts)]
+            )
             resp = provider.complete(req)
             assert resp.text == "An image."
 
@@ -409,7 +447,11 @@ class TestAnthropicVision:
 
     def test_base64_image(self):
         from llmgate.providers.anthropic import AnthropicProvider
-        with patch("anthropic.Anthropic") as mock_cls, patch("anthropic.AsyncAnthropic"):
+
+        with (
+            patch("anthropic.Anthropic") as mock_cls,
+            patch("anthropic.AsyncAnthropic"),
+        ):
             client = mock_cls.return_value
             client.messages.create.return_value = self._make_response()
             provider = AnthropicProvider.__new__(AnthropicProvider)
@@ -419,10 +461,14 @@ class TestAnthropicVision:
             provider.name = "anthropic"
 
             from llmgate.types import CompletionRequest
-            parts = [_make_image_bytes_part(JPEG_B64, "image/jpeg"), _make_text_part("Describe")]
-            req = CompletionRequest(model="claude-opus-4-7", messages=[
-                Message(role="user", content=parts)
-            ])
+
+            parts = [
+                _make_image_bytes_part(JPEG_B64, "image/jpeg"),
+                _make_text_part("Describe"),
+            ]
+            req = CompletionRequest(
+                model="claude-opus-4-7", messages=[Message(role="user", content=parts)]
+            )
             provider.complete(req)
             call_args = client.messages.create.call_args
             msgs = call_args[1]["messages"]
@@ -452,21 +498,31 @@ class TestMistralVision:
 
     def test_image_url_is_string(self):
         import sys
+
         mock_mistralai = MagicMock()
         mock_client_instance = MagicMock()
         mock_client_instance.chat.complete.return_value = self._make_response()
         mock_mistralai.client.Mistral.return_value = mock_client_instance
-        with patch.dict(sys.modules, {"mistralai": mock_mistralai, "mistralai.client": mock_mistralai.client}):
+        with patch.dict(
+            sys.modules,
+            {"mistralai": mock_mistralai, "mistralai.client": mock_mistralai.client},
+        ):
             from llmgate.providers.mistral import MistralProvider
+
             provider = MistralProvider.__new__(MistralProvider)
             provider._client = mock_client_instance
             provider.name = "mistral"
 
             from llmgate.types import CompletionRequest
-            parts = [_make_image_url_part("https://x.com/img.jpg"), _make_text_part("Describe")]
-            req = CompletionRequest(model="mistral/mistral-small-latest", messages=[
-                Message(role="user", content=parts)
-            ])
+
+            parts = [
+                _make_image_url_part("https://x.com/img.jpg"),
+                _make_text_part("Describe"),
+            ]
+            req = CompletionRequest(
+                model="mistral/mistral-small-latest",
+                messages=[Message(role="user", content=parts)],
+            )
             provider.complete(req)
             call_args = mock_client_instance.chat.complete.call_args
             msgs = call_args[1]["messages"]
@@ -479,6 +535,7 @@ class TestMistralVision:
 class TestGroqVision:
     def test_no_detail_field(self):
         from llmgate.providers.groq import GroqProvider
+
         with patch("groq.Groq") as mock_cls, patch("groq.AsyncGroq"):
             client = mock_cls.return_value
             client.chat.completions.create.return_value = _make_openai_response()
@@ -489,13 +546,14 @@ class TestGroqVision:
             provider.name = "groq"
 
             from llmgate.types import CompletionRequest
+
             parts = [
                 _make_image_url_part("https://x.com/img.jpg", detail="high"),
-                _make_text_part("Describe")
+                _make_text_part("Describe"),
             ]
             req = CompletionRequest(
                 model="groq/meta-llama/llama-4-scout-17b-16e-instruct",
-                messages=[Message(role="user", content=parts)]
+                messages=[Message(role="user", content=parts)],
             )
             provider.complete(req)
             call_args = client.chat.completions.create.call_args
@@ -516,6 +574,7 @@ class TestBedrockVision:
 
     def test_image_bytes_block(self):
         from llmgate.providers.bedrock import BedrockProvider
+
         provider = BedrockProvider.__new__(BedrockProvider)
         mock_brt = MagicMock()
         mock_brt.converse.return_value = self._make_response()
@@ -525,10 +584,14 @@ class TestBedrockVision:
         provider.name = "bedrock"
 
         from llmgate.types import CompletionRequest
-        parts = [_make_image_bytes_part(JPEG_B64, "image/jpeg"), _make_text_part("Describe")]
+
+        parts = [
+            _make_image_bytes_part(JPEG_B64, "image/jpeg"),
+            _make_text_part("Describe"),
+        ]
         req = CompletionRequest(
             model="bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0",
-            messages=[Message(role="user", content=parts)]
+            messages=[Message(role="user", content=parts)],
         )
         provider.complete(req)
         call_args = mock_brt.converse.call_args
@@ -552,6 +615,7 @@ class TestOllamaVision:
 
     def test_image_bytes_in_images_field(self):
         from llmgate.providers.ollama import OllamaProvider
+
         provider = OllamaProvider.__new__(OllamaProvider)
         mock_client = MagicMock()
         mock_client.chat.return_value = self._make_response()
@@ -561,10 +625,13 @@ class TestOllamaVision:
         provider.name = "ollama"
 
         from llmgate.types import CompletionRequest
-        parts = [_make_text_part("What's here?"), _make_image_bytes_part(JPEG_B64, "image/jpeg")]
+
+        parts = [
+            _make_text_part("What's here?"),
+            _make_image_bytes_part(JPEG_B64, "image/jpeg"),
+        ]
         req = CompletionRequest(
-            model="ollama/llava",
-            messages=[Message(role="user", content=parts)]
+            model="ollama/llava", messages=[Message(role="user", content=parts)]
         )
         provider.complete(req)
         call_args = mock_client.chat.call_args
@@ -574,6 +641,7 @@ class TestOllamaVision:
 
     def test_str_content_unaffected(self):
         from llmgate.providers.ollama import OllamaProvider
+
         provider = OllamaProvider.__new__(OllamaProvider)
         mock_client = MagicMock()
         mock_client.chat.return_value = self._make_response()
@@ -583,9 +651,9 @@ class TestOllamaVision:
         provider.name = "ollama"
 
         from llmgate.types import CompletionRequest
+
         req = CompletionRequest(
-            model="ollama/llava",
-            messages=[Message(role="user", content="What's up?")]
+            model="ollama/llava", messages=[Message(role="user", content="What's up?")]
         )
         provider.complete(req)
         call_args = mock_client.chat.call_args
@@ -597,6 +665,7 @@ class TestOllamaVision:
 class TestCohereVisionNotSupported:
     def test_image_content_raises(self):
         from llmgate.providers.cohere import CohereProvider
+
         provider = CohereProvider.__new__(CohereProvider)
         provider._cohere = MagicMock()
         provider._client = MagicMock()
@@ -604,10 +673,14 @@ class TestCohereVisionNotSupported:
         provider.name = "cohere"
 
         from llmgate.types import CompletionRequest
-        parts = [_make_image_url_part("https://x.com/img.jpg"), _make_text_part("Describe")]
+
+        parts = [
+            _make_image_url_part("https://x.com/img.jpg"),
+            _make_text_part("Describe"),
+        ]
         req = CompletionRequest(
             model="cohere/command-r-plus",
-            messages=[Message(role="user", content=parts)]
+            messages=[Message(role="user", content=parts)],
         )
         with pytest.raises(VisionNotSupported) as exc_info:
             provider.complete(req)
@@ -616,6 +689,7 @@ class TestCohereVisionNotSupported:
     def test_str_content_still_works(self):
         """Text-only requests to Cohere should be unaffected."""
         from llmgate.providers.cohere import CohereProvider
+
         mock_response = MagicMock()
         mock_response.message.content = [MagicMock(text="hi")]
         mock_response.message.tool_calls = None
@@ -630,9 +704,10 @@ class TestCohereVisionNotSupported:
         provider.name = "cohere"
 
         from llmgate.types import CompletionRequest
+
         req = CompletionRequest(
             model="cohere/command-r-plus",
-            messages=[Message(role="user", content="Hello!")]
+            messages=[Message(role="user", content="Hello!")],
         )
         resp = provider.complete(req)
         assert resp.text == "hi"
@@ -646,6 +721,7 @@ class TestCohereVisionNotSupported:
 class TestPackageExports:
     def test_vision_types_exported(self):
         import llmgate
+
         assert hasattr(llmgate, "ImageURL")
         assert hasattr(llmgate, "ImageBytes")
         assert hasattr(llmgate, "TextPart")
@@ -654,10 +730,13 @@ class TestPackageExports:
 
     def test_version_bumped(self):
         import llmgate
+
         # Check version is a valid semver string (not hardcoded, so this never breaks on bumps)
         parts = llmgate.__version__.split(".")
         assert len(parts) == 3, f"Expected semver X.Y.Z, got {llmgate.__version__!r}"
-        assert all(p.isdigit() for p in parts), f"Non-numeric version parts: {llmgate.__version__!r}"
+        assert all(p.isdigit() for p in parts), (
+            f"Non-numeric version parts: {llmgate.__version__!r}"
+        )
         assert tuple(int(p) for p in parts) >= (0, 5, 0), (
             f"Version {llmgate.__version__!r} is older than v0.5.0"
         )

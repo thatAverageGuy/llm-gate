@@ -13,18 +13,27 @@ Sync + async versions are both required.  The default ``ahandle``
 implementation calls the sync ``handle``, so simple middlewares only
 need to override ``handle`` unless they do async I/O themselves.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import AsyncIterator, Awaitable, Callable, Iterator
 
-from llmgate.types import CompletionRequest, CompletionResponse, StreamChunk
+from llmgate.types import (
+    CompletionRequest,
+    CompletionResponse,
+    EmbeddingRequest,
+    EmbeddingResponse,
+    StreamChunk,
+)
 
 # Type aliases for call_next callables
 SyncNext = Callable[[CompletionRequest], CompletionResponse]
 AsyncNext = Callable[[CompletionRequest], Awaitable[CompletionResponse]]
 SyncStreamNext = Callable[[CompletionRequest], Iterator[StreamChunk]]
 AsyncStreamNext = Callable[[CompletionRequest], AsyncIterator[StreamChunk]]
+SyncEmbedNext = Callable[[EmbeddingRequest], EmbeddingResponse]
+AsyncEmbedNext = Callable[[EmbeddingRequest], Awaitable[EmbeddingResponse]]
 
 
 class BaseMiddleware(ABC):
@@ -92,3 +101,19 @@ class BaseMiddleware(ABC):
         """Wrap an async stream.  Default: pass through unchanged."""
         async for chunk in call_next(request):
             yield chunk
+
+    def embed_handle(
+        self,
+        request: EmbeddingRequest,
+        call_next: SyncEmbedNext,
+    ) -> EmbeddingResponse:
+        """Process a sync embedding request. Default: pass through unchanged."""
+        return call_next(request)
+
+    async def aembed_handle(
+        self,
+        request: EmbeddingRequest,
+        call_next: AsyncEmbedNext,
+    ) -> EmbeddingResponse:
+        """Process an async embedding request. Default: pass through unchanged."""
+        return await call_next(request)

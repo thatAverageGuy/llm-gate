@@ -2,6 +2,7 @@
 Mocked unit tests for the 5 new optional providers.
 No API calls are made — all SDK interactions are patched.
 """
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -11,14 +12,17 @@ import pytest
 
 from llmgate.exceptions import AuthError
 from llmgate.types import (
-    CompletionRequest, FunctionDefinition,
-    Message, ToolDefinition,
+    CompletionRequest,
+    FunctionDefinition,
+    Message,
+    ToolDefinition,
 )
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _req(model: str, content: str = "hello") -> CompletionRequest:
     return CompletionRequest(
@@ -31,11 +35,18 @@ def _req_with_tools(model: str) -> CompletionRequest:
     return CompletionRequest(
         model=model,
         messages=[Message(role="user", content="What's the weather?")],
-        tools=[ToolDefinition(function=FunctionDefinition(
-            name="get_weather",
-            description="Get weather for a city",
-            parameters={"type": "object", "properties": {"city": {"type": "string"}}},
-        ))],
+        tools=[
+            ToolDefinition(
+                function=FunctionDefinition(
+                    name="get_weather",
+                    description="Get weather for a city",
+                    parameters={
+                        "type": "object",
+                        "properties": {"city": {"type": "string"}},
+                    },
+                )
+            )
+        ],
     )
 
 
@@ -43,9 +54,11 @@ def _req_with_tools(model: str) -> CompletionRequest:
 # MistralProvider
 # --------------------------------------------------------------------------
 
+
 class TestMistralProvider:
     def _make_provider(self):
         from llmgate.providers.mistral import MistralProvider
+
         mock_client = MagicMock()
         p = MistralProvider.__new__(MistralProvider)
         p._client = mock_client
@@ -53,11 +66,13 @@ class TestMistralProvider:
 
     def test_model_prefix_stripped(self):
         from llmgate.providers.mistral import MistralProvider
+
         p = MistralProvider.__new__(MistralProvider)
         assert p._strip_prefix("mistral/mistral-large-latest") == "mistral-large-latest"
 
     def test_supports_prefix(self):
         from llmgate.providers.mistral import MistralProvider
+
         assert MistralProvider.supports("mistral/mistral-large-latest")
         assert not MistralProvider.supports("gpt-4o")
 
@@ -65,11 +80,15 @@ class TestMistralProvider:
         p, mock_client = self._make_provider()
         mock_raw = SimpleNamespace(
             id="mid-1",
-            choices=[SimpleNamespace(
-                index=0,
-                message=SimpleNamespace(role="assistant", content="pong", tool_calls=None),
-                finish_reason="stop",
-            )],
+            choices=[
+                SimpleNamespace(
+                    index=0,
+                    message=SimpleNamespace(
+                        role="assistant", content="pong", tool_calls=None
+                    ),
+                    finish_reason="stop",
+                )
+            ],
             usage=SimpleNamespace(prompt_tokens=5, completion_tokens=3, total_tokens=8),
         )
         mock_client.chat.complete.return_value = mock_raw
@@ -89,6 +108,7 @@ class TestMistralProvider:
         pytest.importorskip("mistralai", reason="mistralai not installed")
         monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
         from llmgate.providers.mistral import MistralProvider
+
         with patch.dict("os.environ", {}, clear=True):
             with pytest.raises(AuthError):
                 MistralProvider(api_key=None)
@@ -98,9 +118,11 @@ class TestMistralProvider:
 # CohereProvider
 # --------------------------------------------------------------------------
 
+
 class TestCohereProvider:
     def _make_provider(self):
         from llmgate.providers.cohere import CohereProvider
+
         p = CohereProvider.__new__(CohereProvider)
         mock_client = MagicMock()
         p._client = mock_client
@@ -110,16 +132,19 @@ class TestCohereProvider:
 
     def test_model_prefix_stripped(self):
         from llmgate.providers.cohere import CohereProvider
+
         p = CohereProvider.__new__(CohereProvider)
         assert p._strip_prefix("cohere/command-r-plus") == "command-r-plus"
 
     def test_supports_prefix(self):
         from llmgate.providers.cohere import CohereProvider
+
         assert CohereProvider.supports("cohere/command-r-plus")
         assert not CohereProvider.supports("gpt-4o")
 
     def test_messages_built_correctly(self):
         from llmgate.providers.cohere import CohereProvider
+
         p = CohereProvider.__new__(CohereProvider)
         req = _req("cohere/command-r-plus", "hello")
         params = p._build_params(req)
@@ -128,6 +153,7 @@ class TestCohereProvider:
 
     def test_tools_serialised_correctly(self):
         from llmgate.providers.cohere import CohereProvider
+
         p = CohereProvider.__new__(CohereProvider)
         req = _req_with_tools("cohere/command-r-plus")
         params = p._build_params(req)
@@ -137,6 +163,7 @@ class TestCohereProvider:
     def test_auth_error_when_no_key(self, monkeypatch):
         monkeypatch.delenv("COHERE_API_KEY", raising=False)
         from llmgate.providers.cohere import CohereProvider
+
         # cohere is a lazy import inside __init__; mock importlib
         mock_cohere = MagicMock()
         mock_cohere.ClientV2 = MagicMock()
@@ -151,9 +178,11 @@ class TestCohereProvider:
 # AzureOpenAIProvider
 # --------------------------------------------------------------------------
 
+
 class TestAzureOpenAIProvider:
     def _make_provider(self):
         from llmgate.providers.azure import AzureOpenAIProvider
+
         p = AzureOpenAIProvider.__new__(AzureOpenAIProvider)
         p._client = MagicMock()
         p._async_client = MagicMock()
@@ -162,11 +191,13 @@ class TestAzureOpenAIProvider:
 
     def test_model_prefix_stripped(self):
         from llmgate.providers.azure import AzureOpenAIProvider
+
         p = AzureOpenAIProvider.__new__(AzureOpenAIProvider)
         assert p._strip_prefix("azure/my-gpt4-deployment") == "my-gpt4-deployment"
 
     def test_supports_prefix(self):
         from llmgate.providers.azure import AzureOpenAIProvider
+
         assert AzureOpenAIProvider.supports("azure/my-deployment")
         assert not AzureOpenAIProvider.supports("gpt-4o")
 
@@ -181,11 +212,15 @@ class TestAzureOpenAIProvider:
         p = self._make_provider()
         mock_raw = SimpleNamespace(
             id="az-1",
-            choices=[SimpleNamespace(
-                index=0,
-                message=SimpleNamespace(role="assistant", content="azure pong", tool_calls=None),
-                finish_reason="stop",
-            )],
+            choices=[
+                SimpleNamespace(
+                    index=0,
+                    message=SimpleNamespace(
+                        role="assistant", content="azure pong", tool_calls=None
+                    ),
+                    finish_reason="stop",
+                )
+            ],
             usage=SimpleNamespace(prompt_tokens=4, completion_tokens=3, total_tokens=7),
         )
         p._client.chat.completions.create.return_value = mock_raw
@@ -197,6 +232,7 @@ class TestAzureOpenAIProvider:
         monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
         monkeypatch.delenv("AZURE_OPENAI_ENDPOINT", raising=False)
         from llmgate.providers.azure import AzureOpenAIProvider
+
         # openai is already installed; just unset env vars
         with patch.dict("os.environ", {}, clear=True):
             with pytest.raises(AuthError):
@@ -207,9 +243,11 @@ class TestAzureOpenAIProvider:
 # BedrockProvider
 # --------------------------------------------------------------------------
 
+
 class TestBedrockProvider:
     def _make_provider(self):
         from llmgate.providers.bedrock import BedrockProvider
+
         p = BedrockProvider.__new__(BedrockProvider)
         p._client = MagicMock()
         p._boto3 = MagicMock()
@@ -218,13 +256,17 @@ class TestBedrockProvider:
 
     def test_model_prefix_stripped(self):
         from llmgate.providers.bedrock import BedrockProvider
+
         p = BedrockProvider.__new__(BedrockProvider)
         full = "bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0"
         assert p._strip_prefix(full) == "anthropic.claude-3-5-sonnet-20241022-v2:0"
 
     def test_supports_prefix(self):
         from llmgate.providers.bedrock import BedrockProvider
-        assert BedrockProvider.supports("bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0")
+
+        assert BedrockProvider.supports(
+            "bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0"
+        )
         assert not BedrockProvider.supports("gpt-4o")
 
     def test_converse_params_built_correctly(self):
@@ -236,6 +278,7 @@ class TestBedrockProvider:
 
     def test_system_prompt_extracted(self):
         from llmgate.providers.bedrock import BedrockProvider
+
         p = BedrockProvider.__new__(BedrockProvider)
         msgs = [
             Message(role="system", content="You are helpful."),
@@ -269,9 +312,19 @@ class TestBedrockProvider:
     def test_tool_use_block_mapped(self):
         p = self._make_provider()
         mock_raw = {
-            "output": {"message": {"content": [
-                {"toolUse": {"toolUseId": "tu-1", "name": "get_weather", "input": {"city": "London"}}},
-            ]}},
+            "output": {
+                "message": {
+                    "content": [
+                        {
+                            "toolUse": {
+                                "toolUseId": "tu-1",
+                                "name": "get_weather",
+                                "input": {"city": "London"},
+                            }
+                        },
+                    ]
+                }
+            },
             "stopReason": "tool_use",
             "usage": {"inputTokens": 10, "outputTokens": 5, "totalTokens": 15},
             "ResponseMetadata": {"RequestId": "br-2"},
@@ -287,9 +340,11 @@ class TestBedrockProvider:
 # OllamaProvider
 # --------------------------------------------------------------------------
 
+
 class TestOllamaProvider:
     def _make_provider(self):
         from llmgate.providers.ollama import OllamaProvider
+
         p = OllamaProvider.__new__(OllamaProvider)
         p._client = MagicMock()
         p._async_client = MagicMock()
@@ -298,11 +353,13 @@ class TestOllamaProvider:
 
     def test_model_prefix_stripped(self):
         from llmgate.providers.ollama import OllamaProvider
+
         p = OllamaProvider.__new__(OllamaProvider)
         assert p._strip_prefix("ollama/llama3.2") == "llama3.2"
 
     def test_supports_prefix(self):
         from llmgate.providers.ollama import OllamaProvider
+
         assert OllamaProvider.supports("ollama/llama3.2")
         assert not OllamaProvider.supports("gpt-4o")
 
@@ -337,7 +394,9 @@ class TestOllamaProvider:
     def test_complete_maps_response(self):
         p = self._make_provider()
         mock_raw = SimpleNamespace(
-            message=SimpleNamespace(role="assistant", content="ollama pong", tool_calls=None),
+            message=SimpleNamespace(
+                role="assistant", content="ollama pong", tool_calls=None
+            ),
             done_reason="stop",
             prompt_eval_count=5,
             eval_count=3,
@@ -353,7 +412,9 @@ class TestOllamaProvider:
             function=SimpleNamespace(name="get_weather", arguments={"city": "NYC"}),
         )
         mock_raw = SimpleNamespace(
-            message=SimpleNamespace(role="assistant", content=None, tool_calls=[mock_tc]),
+            message=SimpleNamespace(
+                role="assistant", content=None, tool_calls=[mock_tc]
+            ),
             done_reason="tool_calls",
             prompt_eval_count=5,
             eval_count=3,
@@ -365,22 +426,26 @@ class TestOllamaProvider:
 
 
 # --------------------------------------------------------------------------
-# Provider routing via completion() 
+# Provider routing via completion()
 # --------------------------------------------------------------------------
+
 
 class TestProviderRouting:
     def test_mistral_prefix_routed(self):
         from llmgate.completion import _OPTIONAL_PROVIDERS
+
         prefixes = [p for p, _, _ in _OPTIONAL_PROVIDERS]
         assert "mistral/" in prefixes
 
     def test_ollama_prefix_routed(self):
         from llmgate.completion import _OPTIONAL_PROVIDERS
+
         prefixes = [p for p, _, _ in _OPTIONAL_PROVIDERS]
         assert "ollama/" in prefixes
 
     def test_all_optional_prefixes_registered(self):
         from llmgate.completion import _OPTIONAL_PROVIDERS
+
         expected = {"mistral/", "cohere/", "azure/", "bedrock/", "ollama/"}
         actual = {p for p, _, _ in _OPTIONAL_PROVIDERS}
         assert actual == expected
@@ -388,5 +453,6 @@ class TestProviderRouting:
     def test_unknown_prefix_raises(self):
         from llmgate.exceptions import ModelNotFoundError
         from llmgate.completion import _get_provider
+
         with pytest.raises(ModelNotFoundError):
             _get_provider("unknownprovider/some-model")

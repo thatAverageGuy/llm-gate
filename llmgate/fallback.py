@@ -39,6 +39,7 @@ Public helpers
 ``_try_models_stream_async``  — called by ``acompletion(..., stream=True)`` and
                                 ``LLMGate.astream()``
 """
+
 from __future__ import annotations
 
 import warnings
@@ -59,12 +60,15 @@ if TYPE_CHECKING:
 
 # Keys that are consumed by the fallback layer and must not be forwarded to
 # _build_request (which would treat them as unknown extra_kwargs).
-_FALLBACK_KEYS = frozenset({"fallback_on", "stream_fallback_mode", "stream_resume_prompt"})
+_FALLBACK_KEYS = frozenset(
+    {"fallback_on", "stream_fallback_mode", "stream_resume_prompt"}
+)
 
 
 # ---------------------------------------------------------------------------
 # Non-streaming fallback helpers (unchanged behaviour)
 # ---------------------------------------------------------------------------
+
 
 def _try_models_sync(
     models: list[str],
@@ -107,6 +111,7 @@ def _try_models_sync(
             request = _build_request(model, messages, stream=False, kwargs=build_kwargs)
 
             if middleware:
+
                 def _inner(req: CompletionRequest, _p=provider) -> CompletionResponse:
                     return _p.complete(req)
 
@@ -149,7 +154,10 @@ async def _try_models_async(
             request = _build_request(model, messages, stream=False, kwargs=build_kwargs)
 
             if middleware:
-                async def _inner(req: CompletionRequest, _p=provider) -> CompletionResponse:
+
+                async def _inner(
+                    req: CompletionRequest, _p=provider
+                ) -> CompletionResponse:
                     return await _p.acomplete(req)
 
                 chain = _build_async_chain(middleware, _inner)
@@ -169,6 +177,7 @@ async def _try_models_async(
 # ---------------------------------------------------------------------------
 # Stream-resume helper
 # ---------------------------------------------------------------------------
+
 
 def _build_resume_messages(
     original_messages: list[Any],
@@ -202,7 +211,9 @@ def _build_resume_messages(
             )
             # fall through to user_turn block below
         else:
-            return list(original_messages) + [Message(role="assistant", content=partial)]
+            return list(original_messages) + [
+                Message(role="assistant", content=partial)
+            ]
 
     # "user_turn" (or prefill that was downgraded because provider doesn't support it)
     prompt = stream_resume_prompt or "Continue from exactly where you left off."
@@ -215,6 +226,7 @@ def _build_resume_messages(
 # ---------------------------------------------------------------------------
 # Streaming fallback helpers
 # ---------------------------------------------------------------------------
+
 
 def _try_models_stream_sync(
     models: list[str],
@@ -257,10 +269,15 @@ def _try_models_stream_sync(
         is_resume = bool(accumulated_partial) and mode != "restart"
         run_messages = (
             _build_resume_messages(
-                list(messages), accumulated_partial, mode, stream_resume_prompt,
-                model, build_kwargs,
+                list(messages),
+                accumulated_partial,
+                mode,
+                stream_resume_prompt,
+                model,
+                build_kwargs,
             )
-            if is_resume else list(messages)
+            if is_resume
+            else list(messages)
         )
 
         provider = _get_provider(
@@ -271,9 +288,13 @@ def _try_models_stream_sync(
         request = _build_request(model, run_messages, stream=True, kwargs=build_kwargs)
 
         if middleware:
+
             def _inner(req: CompletionRequest, _p=provider) -> Iterator[StreamChunk]:
                 return _p.stream(req)
-            stream_iter: Iterator[StreamChunk] = _build_stream_sync_chain(middleware, _inner)(request)
+
+            stream_iter: Iterator[StreamChunk] = _build_stream_sync_chain(
+                middleware, _inner
+            )(request)
         else:
             stream_iter = provider.stream(request)
 
@@ -281,10 +302,12 @@ def _try_models_stream_sync(
         try:
             for chunk in stream_iter:
                 if first_chunk:
-                    chunk = chunk.model_copy(update={
-                        "fallback_attempts": attempted.copy(),
-                        "resumed_from_partial": is_resume,
-                    })
+                    chunk = chunk.model_copy(
+                        update={
+                            "fallback_attempts": attempted.copy(),
+                            "resumed_from_partial": is_resume,
+                        }
+                    )
                     first_chunk = False
                 accumulated_partial += chunk.delta
                 yield chunk
@@ -293,14 +316,14 @@ def _try_models_stream_sync(
         except fallback_on as exc:  # type: ignore[misc]
             errors.append((model, exc))
             attempted.append(model)
-            remaining = models[idx + 1:]
+            remaining = models[idx + 1 :]
             warnings.warn(
                 f"llmgate: stream from {model!r} failed with "
                 f"{type(exc).__name__}: {exc}. "
                 + (
-                    f"Falling back to {remaining[0]!r} "
-                    f"(stream_fallback_mode={mode!r})."
-                    if remaining else "No more fallback models."
+                    f"Falling back to {remaining[0]!r} (stream_fallback_mode={mode!r})."
+                    if remaining
+                    else "No more fallback models."
                 ),
                 stacklevel=3,
             )
@@ -330,10 +353,15 @@ async def _try_models_stream_async(
         is_resume = bool(accumulated_partial) and mode != "restart"
         run_messages = (
             _build_resume_messages(
-                list(messages), accumulated_partial, mode, stream_resume_prompt,
-                model, build_kwargs,
+                list(messages),
+                accumulated_partial,
+                mode,
+                stream_resume_prompt,
+                model,
+                build_kwargs,
             )
-            if is_resume else list(messages)
+            if is_resume
+            else list(messages)
         )
 
         provider = _get_provider(
@@ -344,8 +372,12 @@ async def _try_models_stream_async(
         request = _build_request(model, run_messages, stream=True, kwargs=build_kwargs)
 
         if middleware:
-            async def _inner(req: CompletionRequest, _p=provider) -> AsyncIterator[StreamChunk]:
+
+            async def _inner(
+                req: CompletionRequest, _p=provider
+            ) -> AsyncIterator[StreamChunk]:
                 return _p.astream(req)
+
             astream_iter: AsyncIterator[StreamChunk] = await _build_stream_async_chain(
                 middleware, _inner
             )(request)
@@ -357,10 +389,12 @@ async def _try_models_stream_async(
         try:
             async for chunk in astream_iter:
                 if first_chunk:
-                    chunk = chunk.model_copy(update={
-                        "fallback_attempts": attempted.copy(),
-                        "resumed_from_partial": is_resume,
-                    })
+                    chunk = chunk.model_copy(
+                        update={
+                            "fallback_attempts": attempted.copy(),
+                            "resumed_from_partial": is_resume,
+                        }
+                    )
                     first_chunk = False
                 accumulated_partial += chunk.delta
                 yield chunk
@@ -369,17 +403,16 @@ async def _try_models_stream_async(
         except fallback_on as exc:  # type: ignore[misc]
             errors.append((model, exc))
             attempted.append(model)
-            remaining = models[idx + 1:]
+            remaining = models[idx + 1 :]
             warnings.warn(
                 f"llmgate: stream from {model!r} failed with "
                 f"{type(exc).__name__}: {exc}. "
                 + (
-                    f"Falling back to {remaining[0]!r} "
-                    f"(stream_fallback_mode={mode!r})."
-                    if remaining else "No more fallback models."
+                    f"Falling back to {remaining[0]!r} (stream_fallback_mode={mode!r})."
+                    if remaining
+                    else "No more fallback models."
                 ),
                 stacklevel=3,
             )
 
     raise AllProvidersFailedError(errors)
-

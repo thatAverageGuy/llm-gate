@@ -37,10 +37,16 @@ exception type propagates immediately.
     Use ``LLMGate(fallback_chain=[...])`` or ``completion(model=[...])``
     if you need full middleware coverage on every candidate.
 """
+
 from __future__ import annotations
 
 
-from llmgate.exceptions import AllProvidersFailedError, AuthError, ProviderAPIError, RateLimitError
+from llmgate.exceptions import (
+    AllProvidersFailedError,
+    AuthError,
+    ProviderAPIError,
+    RateLimitError,
+)
 from llmgate.middleware.base import AsyncNext, BaseMiddleware, SyncNext
 from llmgate.types import CompletionRequest, CompletionResponse
 
@@ -89,14 +95,18 @@ class FallbackMiddleware(BaseMiddleware):
         self.models = models
         self.fallback_on = fallback_on
 
-    def _call_provider(self, model: str, request: CompletionRequest) -> CompletionResponse:
+    def _call_provider(
+        self, model: str, request: CompletionRequest
+    ) -> CompletionResponse:
         """Directly call a provider, bypassing the middleware chain."""
         provider = _get_provider(model, None, None)
         # Create a new request with the fallback model name
         fallback_req = request.model_copy(update={"model": model})
         return provider.complete(fallback_req)
 
-    async def _acall_provider(self, model: str, request: CompletionRequest) -> CompletionResponse:
+    async def _acall_provider(
+        self, model: str, request: CompletionRequest
+    ) -> CompletionResponse:
         """Async: directly call a provider, bypassing the middleware chain."""
         provider = _get_provider(model, None, None)
         fallback_req = request.model_copy(update={"model": model})

@@ -11,6 +11,7 @@ Groq provider — wraps the official ``groq`` Python SDK (OpenAI-compatible).
 The prefix is stripped before the model name is sent to the Groq API.
 Tool/function calling API is identical to OpenAI.
 """
+
 from __future__ import annotations
 
 import json
@@ -20,7 +21,13 @@ from typing import Any, AsyncIterator, ClassVar, Iterator
 from llmgate.base import BaseProvider
 from llmgate.exceptions import AuthError, ProviderAPIError, RateLimitError
 from llmgate.types import (
-    Choice, CompletionRequest, CompletionResponse, Message, StreamChunk, ToolCall, TokenUsage,
+    Choice,
+    CompletionRequest,
+    CompletionResponse,
+    Message,
+    StreamChunk,
+    ToolCall,
+    TokenUsage,
 )
 
 
@@ -50,6 +57,7 @@ class GroqProvider(BaseProvider):
 
     def _build_params(self, request: CompletionRequest) -> dict[str, Any]:
         from llmgate import vision  # noqa: PLC0415
+
         # Strip "groq/" routing prefix so the underlying model name is clean
         model = self._strip_prefix(request.model)
         messages = []
@@ -100,19 +108,23 @@ class GroqProvider(BaseProvider):
             result.append(ToolCall(id=tc.id, function=tc.function.name, arguments=args))
         return result or None
 
-    def _map_response(self, raw: Any, model: str, response_format: Any = None) -> CompletionResponse:
+    def _map_response(
+        self, raw: Any, model: str, response_format: Any = None
+    ) -> CompletionResponse:
         choices = []
         for c in raw.choices:
             tool_calls = self._parse_tool_calls(getattr(c.message, "tool_calls", None))
-            choices.append(Choice(
-                index=c.index,
-                message=Message(
-                    role=c.message.role,
-                    content=c.message.content or None,
-                    tool_calls=tool_calls,
-                ),
-                finish_reason=c.finish_reason,
-            ))
+            choices.append(
+                Choice(
+                    index=c.index,
+                    message=Message(
+                        role=c.message.role,
+                        content=c.message.content or None,
+                        tool_calls=tool_calls,
+                    ),
+                    finish_reason=c.finish_reason,
+                )
+            )
         usage = TokenUsage(
             prompt_tokens=raw.usage.prompt_tokens if raw.usage else 0,
             completion_tokens=raw.usage.completion_tokens if raw.usage else 0,
@@ -121,6 +133,7 @@ class GroqProvider(BaseProvider):
         parsed = None
         if response_format is not None and choices:
             from llmgate.structured import validate_parsed  # noqa: PLC0415
+
             parsed = validate_parsed(choices[0].message.content, response_format)
         return CompletionResponse(
             id=raw.id,

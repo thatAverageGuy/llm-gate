@@ -7,6 +7,7 @@ These types form the stable public contract of llmgate — every provider maps
 its own SDK response onto these models so callers always work with a consistent
 interface regardless of which provider is under the hood.
 """
+
 from __future__ import annotations
 
 import json
@@ -120,7 +121,7 @@ class ToolCall(BaseModel):
     """A tool/function call requested by the model."""
 
     id: str
-    function: str        # function name
+    function: str  # function name
     arguments: dict[str, Any] = Field(default_factory=dict)
 
     def arguments_json(self) -> str:
@@ -164,7 +165,9 @@ class Message(BaseModel):
             if isinstance(self.content, str):
                 d["content"] = self.content
             else:
-                d["content"] = self.content  # pass list as-is (provider will re-serialise)
+                d["content"] = (
+                    self.content
+                )  # pass list as-is (provider will re-serialise)
         if self.tool_calls is not None:
             d["tool_calls"] = [
                 {
@@ -302,10 +305,10 @@ class StreamChunk(BaseModel):
     id: str
     model: str
     provider: str
-    delta: str                              # text fragment for this chunk
-    finish_reason: Optional[str] = None     # set on the final chunk
+    delta: str  # text fragment for this chunk
+    finish_reason: Optional[str] = None  # set on the final chunk
     index: int = 0
-    usage: Optional[TokenUsage] = None      # populated on the last chunk by some providers
+    usage: Optional[TokenUsage] = None  # populated on the last chunk by some providers
 
     # Fallback observability fields — populated only during multi-model fallback streaming
     fallback_attempts: list[str] = Field(default_factory=list)

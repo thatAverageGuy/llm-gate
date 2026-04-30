@@ -3,6 +3,7 @@ Tests for the Fallback / Routing feature (v0.6).
 
 All provider calls are fully mocked — no live API keys required.
 """
+
 from __future__ import annotations
 
 import sys
@@ -31,7 +32,9 @@ def _clear_cache() -> None:
     sys.modules["llmgate.completion"]._provider_cache.clear()
 
 
-def _fake_response(provider: str = "openai", model: str = "gpt-4o-mini") -> CompletionResponse:
+def _fake_response(
+    provider: str = "openai", model: str = "gpt-4o-mini"
+) -> CompletionResponse:
     return CompletionResponse(
         id="fake-id",
         model=model,
@@ -62,10 +65,15 @@ _PATCH_MW_GET_PROVIDER = "llmgate.middleware.fallback._get_provider"
 
 class TestAllProvidersFailedError:
     def test_message_includes_all_failures(self):
-        err = AllProvidersFailedError([
-            ("gpt-4o-mini", RateLimitError("rate limited", provider="openai")),
-            ("groq/llama-3.1-8b-instant", ProviderAPIError("server error", provider="groq")),
-        ])
+        err = AllProvidersFailedError(
+            [
+                ("gpt-4o-mini", RateLimitError("rate limited", provider="openai")),
+                (
+                    "groq/llama-3.1-8b-instant",
+                    ProviderAPIError("server error", provider="groq"),
+                ),
+            ]
+        )
         assert "gpt-4o-mini" in str(err)
         assert "groq/llama-3.1-8b-instant" in str(err)
 
@@ -84,8 +92,12 @@ class TestAllProvidersFailedError:
 
 class TestSingleModelUnchanged:
     def test_single_string_routes_normally(self):
-        with patch("llmgate.providers.openai.OpenAIProvider.complete") as mock, \
-             patch("llmgate.providers.openai.OpenAIProvider.__init__", return_value=None):
+        with (
+            patch("llmgate.providers.openai.OpenAIProvider.complete") as mock,
+            patch(
+                "llmgate.providers.openai.OpenAIProvider.__init__", return_value=None
+            ),
+        ):
             mock.return_value = _fake_response("openai")
             _clear_cache()
             resp = completion("gpt-4o-mini", MESSAGES, api_key="k")
@@ -104,20 +116,23 @@ class TestSingleModelUnchanged:
 
 
 class TestCompletionFallbackList:
-
     def _make_mock_request(self):
         req = MagicMock()
-        req.model_copy = MagicMock(side_effect=lambda update=None, **_: _fake_response(
-            "groq", "groq/llama-3.1-8b-instant"
-        ).model_copy(update=update or {}))
+        req.model_copy = MagicMock(
+            side_effect=lambda update=None, **_: _fake_response(
+                "groq", "groq/llama-3.1-8b-instant"
+            ).model_copy(update=update or {})
+        )
         return req
 
     def test_first_model_succeeds_no_fallback(self):
         openai_mock = MagicMock()
         openai_mock.complete.return_value = _fake_response("openai")
 
-        with patch(_PATCH_GET_PROVIDER, return_value=openai_mock), \
-             patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()):
+        with (
+            patch(_PATCH_GET_PROVIDER, return_value=openai_mock),
+            patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()),
+        ):
             _clear_cache()
             resp = completion(["gpt-4o-mini", "groq/llama-3.1-8b-instant"], MESSAGES)
             assert resp.provider == "openai"
@@ -127,10 +142,14 @@ class TestCompletionFallbackList:
         openai_mock = MagicMock()
         openai_mock.complete.side_effect = RateLimitError("rl", provider="openai")
         groq_mock = MagicMock()
-        groq_mock.complete.return_value = _fake_response("groq", "groq/llama-3.1-8b-instant")
+        groq_mock.complete.return_value = _fake_response(
+            "groq", "groq/llama-3.1-8b-instant"
+        )
 
-        with patch(_PATCH_GET_PROVIDER, side_effect=[openai_mock, groq_mock]), \
-             patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()):
+        with (
+            patch(_PATCH_GET_PROVIDER, side_effect=[openai_mock, groq_mock]),
+            patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()),
+        ):
             _clear_cache()
             resp = completion(["gpt-4o-mini", "groq/llama-3.1-8b-instant"], MESSAGES)
             assert resp.provider == "groq"
@@ -142,8 +161,10 @@ class TestCompletionFallbackList:
         groq_mock = MagicMock()
         groq_mock.complete.return_value = _fake_response("groq")
 
-        with patch(_PATCH_GET_PROVIDER, side_effect=[openai_mock, groq_mock]), \
-             patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()):
+        with (
+            patch(_PATCH_GET_PROVIDER, side_effect=[openai_mock, groq_mock]),
+            patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()),
+        ):
             _clear_cache()
             resp = completion(["gpt-4o-mini", "groq/llama-3.1-8b-instant"], MESSAGES)
             assert resp.fallback_attempts == ["gpt-4o-mini"]
@@ -155,8 +176,10 @@ class TestCompletionFallbackList:
         groq_mock = MagicMock()
         groq_mock.complete.return_value = _fake_response("groq")
 
-        with patch(_PATCH_GET_PROVIDER, side_effect=[openai_mock, groq_mock]), \
-             patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()):
+        with (
+            patch(_PATCH_GET_PROVIDER, side_effect=[openai_mock, groq_mock]),
+            patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()),
+        ):
             _clear_cache()
             resp = completion(["gpt-4o-mini", "groq/llama-3.1-8b-instant"], MESSAGES)
             assert resp.provider == "groq"
@@ -167,8 +190,10 @@ class TestCompletionFallbackList:
         openai_mock = MagicMock()
         openai_mock.complete.side_effect = ModelNotFoundError("bad-model")
 
-        with patch(_PATCH_GET_PROVIDER, return_value=openai_mock), \
-             patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()):
+        with (
+            patch(_PATCH_GET_PROVIDER, return_value=openai_mock),
+            patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()),
+        ):
             _clear_cache()
             with pytest.raises(ModelNotFoundError):
                 completion(["gpt-4o-mini", "groq/llama-3.1-8b-instant"], MESSAGES)
@@ -177,8 +202,10 @@ class TestCompletionFallbackList:
         failing = MagicMock()
         failing.complete.side_effect = RateLimitError("rl", provider="x")
 
-        with patch(_PATCH_GET_PROVIDER, return_value=failing), \
-             patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()):
+        with (
+            patch(_PATCH_GET_PROVIDER, return_value=failing),
+            patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()),
+        ):
             _clear_cache()
             with pytest.raises(AllProvidersFailedError) as exc_info:
                 completion(["gpt-4o-mini", "groq/llama-3.1-8b-instant"], MESSAGES)
@@ -194,8 +221,12 @@ class TestCompletionFallbackList:
         gemini_mock = MagicMock()
         gemini_mock.complete.return_value = _fake_response("gemini")
 
-        with patch(_PATCH_GET_PROVIDER, side_effect=[openai_mock, groq_mock, gemini_mock]), \
-             patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()):
+        with (
+            patch(
+                _PATCH_GET_PROVIDER, side_effect=[openai_mock, groq_mock, gemini_mock]
+            ),
+            patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()),
+        ):
             _clear_cache()
             resp = completion(
                 ["gpt-4o-mini", "groq/llama-3.1-8b-instant", "gemini-2.5-flash-lite"],
@@ -209,8 +240,10 @@ class TestCompletionFallbackList:
         failing = MagicMock()
         failing.complete.side_effect = RateLimitError("rl", provider="x")
 
-        with patch(_PATCH_GET_PROVIDER, return_value=failing), \
-             patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()):
+        with (
+            patch(_PATCH_GET_PROVIDER, return_value=failing),
+            patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()),
+        ):
             _clear_cache()
             with pytest.raises(AllProvidersFailedError) as exc_info:
                 completion(["a", "b", "c"], MESSAGES)
@@ -221,17 +254,23 @@ class TestCompletionFallbackList:
         from llmgate.types import StreamChunk
 
         def fake_stream():
-            yield StreamChunk(id="c1", model="gpt-4o-mini", provider="openai", delta="hi")
+            yield StreamChunk(
+                id="c1", model="gpt-4o-mini", provider="openai", delta="hi"
+            )
 
         prov = MagicMock()
         prov.name = "openai"
         prov.supports_prefill = False
         prov.stream.return_value = fake_stream()
 
-        with patch("llmgate.fallback._get_provider", return_value=prov), \
-             patch("llmgate.fallback._build_request", return_value=MagicMock()):
+        with (
+            patch("llmgate.fallback._get_provider", return_value=prov),
+            patch("llmgate.fallback._build_request", return_value=MagicMock()),
+        ):
             _clear_cache()
-            it = completion(["gpt-4o-mini", "groq/llama-3.1-8b-instant"], MESSAGES, stream=True)
+            it = completion(
+                ["gpt-4o-mini", "groq/llama-3.1-8b-instant"], MESSAGES, stream=True
+            )
             chunks = list(it)
         assert len(chunks) >= 1
         assert chunks[0].delta == "hi"
@@ -241,8 +280,10 @@ class TestCompletionFallbackList:
         openai_mock = MagicMock()
         openai_mock.complete.side_effect = AuthError("bad key", provider="openai")
 
-        with patch(_PATCH_GET_PROVIDER, return_value=openai_mock), \
-             patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()):
+        with (
+            patch(_PATCH_GET_PROVIDER, return_value=openai_mock),
+            patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()),
+        ):
             _clear_cache()
             with pytest.raises(AuthError):
                 completion(
@@ -263,10 +304,14 @@ class TestACompletionFallback:
         openai_mock = MagicMock()
         openai_mock.acomplete = AsyncMock(return_value=_fake_response("openai"))
 
-        with patch(_PATCH_GET_PROVIDER, return_value=openai_mock), \
-             patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()):
+        with (
+            patch(_PATCH_GET_PROVIDER, return_value=openai_mock),
+            patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()),
+        ):
             _clear_cache()
-            resp = await acompletion(["gpt-4o-mini", "groq/llama-3.1-8b-instant"], MESSAGES)
+            resp = await acompletion(
+                ["gpt-4o-mini", "groq/llama-3.1-8b-instant"], MESSAGES
+            )
             assert resp.provider == "openai"
             assert resp.fallback_attempts == []
 
@@ -279,10 +324,14 @@ class TestACompletionFallback:
         groq_mock = MagicMock()
         groq_mock.acomplete = AsyncMock(return_value=_fake_response("groq"))
 
-        with patch(_PATCH_GET_PROVIDER, side_effect=[openai_mock, groq_mock]), \
-             patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()):
+        with (
+            patch(_PATCH_GET_PROVIDER, side_effect=[openai_mock, groq_mock]),
+            patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()),
+        ):
             _clear_cache()
-            resp = await acompletion(["gpt-4o-mini", "groq/llama-3.1-8b-instant"], MESSAGES)
+            resp = await acompletion(
+                ["gpt-4o-mini", "groq/llama-3.1-8b-instant"], MESSAGES
+            )
             assert resp.provider == "groq"
             assert resp.fallback_attempts == ["gpt-4o-mini"]
 
@@ -291,11 +340,15 @@ class TestACompletionFallback:
         failing = MagicMock()
         failing.acomplete = AsyncMock(side_effect=RateLimitError("rl", provider="x"))
 
-        with patch(_PATCH_GET_PROVIDER, return_value=failing), \
-             patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()):
+        with (
+            patch(_PATCH_GET_PROVIDER, return_value=failing),
+            patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()),
+        ):
             _clear_cache()
             with pytest.raises(AllProvidersFailedError):
-                await acompletion(["gpt-4o-mini", "groq/llama-3.1-8b-instant"], MESSAGES)
+                await acompletion(
+                    ["gpt-4o-mini", "groq/llama-3.1-8b-instant"], MESSAGES
+                )
 
     @pytest.mark.asyncio
     async def test_async_stream_with_list_now_works(self):
@@ -303,15 +356,19 @@ class TestACompletionFallback:
         from llmgate.types import StreamChunk
 
         async def fake_astream():
-            yield StreamChunk(id="c1", model="gpt-4o-mini", provider="openai", delta="async hi")
+            yield StreamChunk(
+                id="c1", model="gpt-4o-mini", provider="openai", delta="async hi"
+            )
 
         prov = MagicMock()
         prov.name = "openai"
         prov.supports_prefill = False
         prov.astream.return_value = fake_astream()
 
-        with patch("llmgate.fallback._get_provider", return_value=prov), \
-             patch("llmgate.fallback._build_request", return_value=MagicMock()):
+        with (
+            patch("llmgate.fallback._get_provider", return_value=prov),
+            patch("llmgate.fallback._build_request", return_value=MagicMock()),
+        ):
             _clear_cache()
             it = await acompletion(
                 ["gpt-4o-mini", "groq/llama-3.1-8b-instant"], MESSAGES, stream=True
@@ -337,8 +394,10 @@ class TestLLMGateFallbackChain:
 
         gate = LLMGate(fallback_chain=["gpt-4o-mini", "groq/llama-3.1-8b-instant"])
 
-        with patch(_PATCH_GET_PROVIDER, side_effect=[openai_mock, groq_mock]), \
-             patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()):
+        with (
+            patch(_PATCH_GET_PROVIDER, side_effect=[openai_mock, groq_mock]),
+            patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()),
+        ):
             _clear_cache()
             resp = gate.completion(messages=MESSAGES)
             assert resp.provider == "groq"
@@ -346,8 +405,12 @@ class TestLLMGateFallbackChain:
 
     def test_gate_without_chain_behaves_normally(self):
         gate = LLMGate()
-        with patch("llmgate.providers.openai.OpenAIProvider.complete") as mock, \
-             patch("llmgate.providers.openai.OpenAIProvider.__init__", return_value=None):
+        with (
+            patch("llmgate.providers.openai.OpenAIProvider.complete") as mock,
+            patch(
+                "llmgate.providers.openai.OpenAIProvider.__init__", return_value=None
+            ),
+        ):
             mock.return_value = _fake_response("openai")
             _clear_cache()
             resp = gate.completion("gpt-4o-mini", MESSAGES, api_key="k")
@@ -359,8 +422,10 @@ class TestLLMGateFallbackChain:
 
         gate = LLMGate(fallback_chain=["gpt-4o-mini", "groq/llama-3.1-8b-instant"])
 
-        with patch(_PATCH_GET_PROVIDER, return_value=failing), \
-             patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()):
+        with (
+            patch(_PATCH_GET_PROVIDER, return_value=failing),
+            patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()),
+        ):
             _clear_cache()
             with pytest.raises(AllProvidersFailedError):
                 gate.completion(messages=MESSAGES)
@@ -368,14 +433,18 @@ class TestLLMGateFallbackChain:
     @pytest.mark.asyncio
     async def test_gate_async_fallback_chain(self):
         openai_mock = MagicMock()
-        openai_mock.acomplete = AsyncMock(side_effect=RateLimitError("rl", provider="openai"))
+        openai_mock.acomplete = AsyncMock(
+            side_effect=RateLimitError("rl", provider="openai")
+        )
         groq_mock = MagicMock()
         groq_mock.acomplete = AsyncMock(return_value=_fake_response("groq"))
 
         gate = LLMGate(fallback_chain=["gpt-4o-mini", "groq/llama-3.1-8b-instant"])
 
-        with patch(_PATCH_GET_PROVIDER, side_effect=[openai_mock, groq_mock]), \
-             patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()):
+        with (
+            patch(_PATCH_GET_PROVIDER, side_effect=[openai_mock, groq_mock]),
+            patch(_PATCH_BUILD_REQUEST, return_value=MagicMock()),
+        ):
             _clear_cache()
             resp = await gate.acompletion(messages=MESSAGES)
             assert resp.provider == "groq"
@@ -413,7 +482,9 @@ class TestFallbackMiddleware:
         # model_copy returns a MagicMock that looks like a fallback request
         fallback_req = MagicMock()
         fallback_req.model_copy = MagicMock(
-            return_value=groq_resp.model_copy(update={"fallback_attempts": ["gpt-4o-mini"]})
+            return_value=groq_resp.model_copy(
+                update={"fallback_attempts": ["gpt-4o-mini"]}
+            )
         )
         req.model_copy = MagicMock(return_value=fallback_req)
 
@@ -473,7 +544,9 @@ class TestFallbackMiddleware:
         req.model = "gpt-4o-mini"
         fallback_req = MagicMock()
         fallback_req.model_copy = MagicMock(
-            return_value=groq_resp.model_copy(update={"fallback_attempts": ["gpt-4o-mini"]})
+            return_value=groq_resp.model_copy(
+                update={"fallback_attempts": ["gpt-4o-mini"]}
+            )
         )
         req.model_copy = MagicMock(return_value=fallback_req)
 

@@ -2,6 +2,7 @@
 Tests for structured output (Pydantic response_format).
 All provider SDK calls are mocked.
 """
+
 from __future__ import annotations
 
 import json
@@ -25,6 +26,7 @@ from llmgate.types import CompletionRequest, Message
 # Schema model used in all tests
 # ---------------------------------------------------------------------------
 
+
 class Movie(BaseModel):
     title: str
     year: int
@@ -39,6 +41,7 @@ MOVIE_WITH_PREAMBLE = f"Here is the movie:\n{MOVIE_JSON}"
 # ---------------------------------------------------------------------------
 # llmgate.structured utilities
 # ---------------------------------------------------------------------------
+
 
 class TestGetJsonSchema:
     def test_returns_dict(self):
@@ -94,6 +97,7 @@ class TestValidateParsed:
 
     def test_schema_mismatch_raises_validation_error(self):
         from pydantic import ValidationError
+
         bad = '{"title": "X", "year": "not_an_int", "rating": 5.0}'
         with pytest.raises(ValidationError):
             validate_parsed(bad, Movie)
@@ -135,6 +139,7 @@ class TestBuildSchemaSystemMessage:
 # Provider-level: _build_params and _map_response with response_format
 # ---------------------------------------------------------------------------
 
+
 def _movie_json_text():
     return MOVIE_JSON
 
@@ -142,6 +147,7 @@ def _movie_json_text():
 class TestOpenAIStructuredOutput:
     def _make_provider(self):
         from llmgate.providers.openai import OpenAIProvider
+
         p = OpenAIProvider.__new__(OpenAIProvider)
         p._client = MagicMock()
         p._async_client = MagicMock()
@@ -166,12 +172,18 @@ class TestOpenAIStructuredOutput:
         p = self._make_provider()
         raw = SimpleNamespace(
             id="x",
-            choices=[SimpleNamespace(
-                index=0,
-                message=SimpleNamespace(role="assistant", content=MOVIE_JSON, tool_calls=None),
-                finish_reason="stop",
-            )],
-            usage=SimpleNamespace(prompt_tokens=5, completion_tokens=10, total_tokens=15),
+            choices=[
+                SimpleNamespace(
+                    index=0,
+                    message=SimpleNamespace(
+                        role="assistant", content=MOVIE_JSON, tool_calls=None
+                    ),
+                    finish_reason="stop",
+                )
+            ],
+            usage=SimpleNamespace(
+                prompt_tokens=5, completion_tokens=10, total_tokens=15
+            ),
         )
         resp = p._map_response(raw, "gpt-4o-mini", Movie)
         assert isinstance(resp.parsed, Movie)
@@ -181,11 +193,15 @@ class TestOpenAIStructuredOutput:
         p = self._make_provider()
         raw = SimpleNamespace(
             id="x",
-            choices=[SimpleNamespace(
-                index=0,
-                message=SimpleNamespace(role="assistant", content="hello", tool_calls=None),
-                finish_reason="stop",
-            )],
+            choices=[
+                SimpleNamespace(
+                    index=0,
+                    message=SimpleNamespace(
+                        role="assistant", content="hello", tool_calls=None
+                    ),
+                    finish_reason="stop",
+                )
+            ],
             usage=SimpleNamespace(prompt_tokens=5, completion_tokens=1, total_tokens=6),
         )
         resp = p._map_response(raw, "gpt-4o-mini", None)
@@ -195,6 +211,7 @@ class TestOpenAIStructuredOutput:
 class TestGroqStructuredOutput:
     def _make_provider(self):
         from llmgate.providers.groq import GroqProvider
+
         p = GroqProvider.__new__(GroqProvider)
         p._client = MagicMock()
         p._async_client = MagicMock()
@@ -214,12 +231,18 @@ class TestGroqStructuredOutput:
         p = self._make_provider()
         raw = SimpleNamespace(
             id="y",
-            choices=[SimpleNamespace(
-                index=0,
-                message=SimpleNamespace(role="assistant", content=MOVIE_JSON, tool_calls=None),
-                finish_reason="stop",
-            )],
-            usage=SimpleNamespace(prompt_tokens=5, completion_tokens=10, total_tokens=15),
+            choices=[
+                SimpleNamespace(
+                    index=0,
+                    message=SimpleNamespace(
+                        role="assistant", content=MOVIE_JSON, tool_calls=None
+                    ),
+                    finish_reason="stop",
+                )
+            ],
+            usage=SimpleNamespace(
+                prompt_tokens=5, completion_tokens=10, total_tokens=15
+            ),
         )
         resp = p._map_response(raw, "groq/llama-3.1-8b-instant", Movie)
         assert isinstance(resp.parsed, Movie)
@@ -229,6 +252,7 @@ class TestGroqStructuredOutput:
 class TestAnthropicStructuredOutput:
     def _make_provider(self):
         from llmgate.providers.anthropic import AnthropicProvider
+
         p = AnthropicProvider.__new__(AnthropicProvider)
         p._client = MagicMock()
         p._async_client = MagicMock()
@@ -264,6 +288,7 @@ class TestAnthropicStructuredOutput:
 class TestOllamaStructuredOutput:
     def _make_provider(self):
         from llmgate.providers.ollama import OllamaProvider
+
         p = OllamaProvider.__new__(OllamaProvider)
         p._client = MagicMock()
         p._async_client = MagicMock()
@@ -285,7 +310,9 @@ class TestOllamaStructuredOutput:
     def test_parsed_populated(self):
         p = self._make_provider()
         mock_raw = SimpleNamespace(
-            message=SimpleNamespace(role="assistant", content=MOVIE_JSON, tool_calls=None),
+            message=SimpleNamespace(
+                role="assistant", content=MOVIE_JSON, tool_calls=None
+            ),
             done_reason="stop",
             prompt_eval_count=5,
             eval_count=10,
@@ -299,9 +326,11 @@ class TestOllamaStructuredOutput:
 # completion() API: response_format passthrough and stream guard
 # ---------------------------------------------------------------------------
 
+
 class TestCompletionAPI:
     def test_stream_with_response_format_raises(self):
         from llmgate.completion import _build_request
+
         with pytest.raises(ValueError, match="stream=True"):
             _build_request(
                 "gpt-4o-mini",
@@ -312,6 +341,7 @@ class TestCompletionAPI:
 
     def test_response_format_passes_through(self):
         from llmgate.completion import _build_request
+
         req = _build_request(
             "gpt-4o-mini",
             [{"role": "user", "content": "hi"}],
@@ -323,9 +353,12 @@ class TestCompletionAPI:
     def test_parse_returns_model_instance(self):
         import sys
         from llmgate.completion import parse
+
         mock_resp = MagicMock()
         mock_resp.parsed = Movie(title="Test", year=2000, rating=7.0)
-        with patch.object(sys.modules["llmgate.completion"], "completion", return_value=mock_resp):
+        with patch.object(
+            sys.modules["llmgate.completion"], "completion", return_value=mock_resp
+        ):
             result = parse("gpt-4o-mini", [], response_format=Movie)
         assert isinstance(result, Movie)
         assert result.title == "Test"
@@ -333,9 +366,12 @@ class TestCompletionAPI:
     def test_parse_raises_if_parsed_is_none(self):
         import sys
         from llmgate.completion import parse
+
         mock_resp = MagicMock()
         mock_resp.parsed = None
         mock_resp.text = "some text"
-        with patch.object(sys.modules["llmgate.completion"], "completion", return_value=mock_resp):
+        with patch.object(
+            sys.modules["llmgate.completion"], "completion", return_value=mock_resp
+        ):
             with pytest.raises(ValueError, match="no structured output"):
                 parse("gpt-4o-mini", [], response_format=Movie)

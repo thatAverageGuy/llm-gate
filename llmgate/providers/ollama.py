@@ -16,6 +16,7 @@ No API key required.  Ollama must be running locally (or at a custom host).
 **Env vars**:
     ``OLLAMA_HOST``  — defaults to ``http://localhost:11434``
 """
+
 from __future__ import annotations
 
 import json
@@ -25,8 +26,13 @@ from typing import Any, AsyncIterator, ClassVar, Iterator
 from llmgate.base import BaseProvider
 from llmgate.exceptions import ProviderAPIError
 from llmgate.types import (
-    Choice, CompletionRequest, CompletionResponse, Message,
-    StreamChunk, ToolCall, TokenUsage,
+    Choice,
+    CompletionRequest,
+    CompletionResponse,
+    Message,
+    StreamChunk,
+    ToolCall,
+    TokenUsage,
 )
 
 
@@ -58,9 +64,12 @@ class OllamaProvider(BaseProvider):
 
     def _build_params(self, request: CompletionRequest) -> dict[str, Any]:
         from llmgate import vision  # noqa: PLC0415
+
         model = self._strip_prefix(request.model)
         # Ollama messages use an images field for multimodal — use vision helper
-        messages = [vision.to_ollama_message(m.role, m.content) for m in request.messages]
+        messages = [
+            vision.to_ollama_message(m.role, m.content) for m in request.messages
+        ]
 
         params: dict[str, Any] = {
             "model": model,
@@ -93,11 +102,14 @@ class OllamaProvider(BaseProvider):
 
         if request.response_format is not None:
             from llmgate.structured import get_json_schema  # noqa: PLC0415
+
             params["format"] = get_json_schema(request.response_format)
 
         return params
 
-    def _map_response(self, raw: Any, model: str, response_format: Any = None) -> CompletionResponse:
+    def _map_response(
+        self, raw: Any, model: str, response_format: Any = None
+    ) -> CompletionResponse:
         msg = raw.message
         tool_calls: list[ToolCall] = []
 
@@ -110,36 +122,41 @@ class OllamaProvider(BaseProvider):
                         args = json.loads(args)
                     except json.JSONDecodeError:
                         pass
-                tool_calls.append(ToolCall(
-                    id=f"{fn.name}-{id(tc)}",  # Ollama doesn't provide IDs
-                    function=fn.name,
-                    arguments=args,
-                ))
+                tool_calls.append(
+                    ToolCall(
+                        id=f"{fn.name}-{id(tc)}",  # Ollama doesn't provide IDs
+                        function=fn.name,
+                        arguments=args,
+                    )
+                )
 
         text = msg.content if not tool_calls else None
         finish_reason = "tool_calls" if tool_calls else (raw.done_reason or "stop")
         parsed = None
         if response_format is not None and text:
             from llmgate.structured import validate_parsed  # noqa: PLC0415
+
             parsed = validate_parsed(text, response_format)
         return CompletionResponse(
             id=f"ollama-{id(raw)}",
             model=model,
             provider=self.name,
-            choices=[Choice(
-                index=0,
-                message=Message(
-                    role=msg.role,
-                    content=text,
-                    tool_calls=tool_calls or None,
-                ),
-                finish_reason=finish_reason,
-            )],
+            choices=[
+                Choice(
+                    index=0,
+                    message=Message(
+                        role=msg.role,
+                        content=text,
+                        tool_calls=tool_calls or None,
+                    ),
+                    finish_reason=finish_reason,
+                )
+            ],
             usage=TokenUsage(
                 prompt_tokens=getattr(raw, "prompt_eval_count", 0) or 0,
                 completion_tokens=getattr(raw, "eval_count", 0) or 0,
                 total_tokens=(getattr(raw, "prompt_eval_count", 0) or 0)
-                             + (getattr(raw, "eval_count", 0) or 0),
+                + (getattr(raw, "eval_count", 0) or 0),
             ),
             raw=raw,
             parsed=parsed,

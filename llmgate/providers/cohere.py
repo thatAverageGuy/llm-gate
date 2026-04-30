@@ -14,6 +14,7 @@ and its own tool calling schema. This provider handles the mapping.
 **Install**: ``pip install llmgate[cohere]``
 **Env var**: ``COHERE_API_KEY``
 """
+
 from __future__ import annotations
 
 import json
@@ -23,8 +24,13 @@ from typing import Any, AsyncIterator, ClassVar, Iterator
 from llmgate.base import BaseProvider
 from llmgate.exceptions import AuthError, ProviderAPIError, RateLimitError
 from llmgate.types import (
-    Choice, CompletionRequest, CompletionResponse, Message,
-    StreamChunk, ToolCall, TokenUsage,
+    Choice,
+    CompletionRequest,
+    CompletionResponse,
+    Message,
+    StreamChunk,
+    ToolCall,
+    TokenUsage,
 )
 
 
@@ -58,32 +64,40 @@ def _to_cohere_messages(
         elif m.role == "assistant":
             if m.tool_calls:
                 # Assistant turn with tool calls — add as CHATBOT turn
-                history.append({
-                    "role": "CHATBOT",
-                    "message": m.content or "",
-                    "tool_calls": [
-                        {
-                            "name": tc.function,
-                            "parameters": tc.arguments or {},
-                        }
-                        for tc in m.tool_calls
-                    ],
-                })
+                history.append(
+                    {
+                        "role": "CHATBOT",
+                        "message": m.content or "",
+                        "tool_calls": [
+                            {
+                                "name": tc.function,
+                                "parameters": tc.arguments or {},
+                            }
+                            for tc in m.tool_calls
+                        ],
+                    }
+                )
             else:
                 history.append({"role": "CHATBOT", "message": m.content or ""})
         elif m.role == "tool":
             # Tool results follow CHATBOT turns with tool_calls
-            history.append({
-                "role": "TOOL",
-                "tool_results": [
-                    {
-                        "call": {"name": m.name or "", "parameters": {}},
-                        "outputs": [{"result": m.content or ""}],
-                    }
-                ],
-            })
+            history.append(
+                {
+                    "role": "TOOL",
+                    "tool_results": [
+                        {
+                            "call": {"name": m.name or "", "parameters": {}},
+                            "outputs": [{"result": m.content or ""}],
+                        }
+                    ],
+                }
+            )
 
-    return current_message, history, "\n\n".join(preamble_parts) if preamble_parts else None
+    return (
+        current_message,
+        history,
+        "\n\n".join(preamble_parts) if preamble_parts else None,
+    )
 
 
 class CohereProvider(BaseProvider):
@@ -114,6 +128,7 @@ class CohereProvider(BaseProvider):
 
     def _build_params(self, request: CompletionRequest) -> dict[str, Any]:
         from llmgate.exceptions import VisionNotSupported  # noqa: PLC0415
+
         # Cohere vision API is not yet stable — raise early if images present
         for m in request.messages:
             if not isinstance(m.content, str) and m.content is not None:
@@ -124,27 +139,31 @@ class CohereProvider(BaseProvider):
         msgs = []
         for m in request.messages:
             if m.role == "tool":
-                msgs.append({
-                    "role": "tool",
-                    "tool_call_id": m.tool_call_id or "",
-                    "content": m.content or "",
-                })
+                msgs.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": m.tool_call_id or "",
+                        "content": m.content or "",
+                    }
+                )
             elif m.role == "assistant" and m.tool_calls:
-                msgs.append({
-                    "role": "assistant",
-                    "tool_calls": [
-                        {
-                            "id": tc.id,
-                            "type": "function",
-                            "function": {
-                                "name": tc.function,
-                                "arguments": json.dumps(tc.arguments or {}),
-                            },
-                        }
-                        for tc in m.tool_calls
-                    ],
-                    "content": m.content or "",
-                })
+                msgs.append(
+                    {
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "id": tc.id,
+                                "type": "function",
+                                "function": {
+                                    "name": tc.function,
+                                    "arguments": json.dumps(tc.arguments or {}),
+                                },
+                            }
+                            for tc in m.tool_calls
+                        ],
+                        "content": m.content or "",
+                    }
+                )
             else:
                 msgs.append({"role": m.role, "content": m.content or ""})
 
@@ -177,11 +196,13 @@ class CohereProvider(BaseProvider):
             params["response_format"] = {"type": "json_object"}
         return params
 
-    def _map_response(self, raw: Any, model: str, response_format: Any = None) -> CompletionResponse:
+    def _map_response(
+        self, raw: Any, model: str, response_format: Any = None
+    ) -> CompletionResponse:
         choices = []
-        for c in (raw.message.content if hasattr(raw, "message") else []):
+        for c in raw.message.content if hasattr(raw, "message") else []:
             pass  # handled below
-        
+
         # Cohere V2 response structure
         resp_msg = raw.message
         tool_calls: list[ToolCall] = []
@@ -195,11 +216,13 @@ class CohereProvider(BaseProvider):
                         args = json.loads(args)
                     except json.JSONDecodeError:
                         pass
-                tool_calls.append(ToolCall(
-                    id=tc.id,
-                    function=tc.function.name,
-                    arguments=args,
-                ))
+                tool_calls.append(
+                    ToolCall(
+                        id=tc.id,
+                        function=tc.function.name,
+                        arguments=args,
+                    )
+                )
         if hasattr(resp_msg, "content") and resp_msg.content:
             for block in resp_msg.content:
                 if hasattr(block, "text"):
@@ -207,21 +230,24 @@ class CohereProvider(BaseProvider):
                     break
 
         finish_reason = "tool_calls" if tool_calls else "stop"
-        choices = [Choice(
-            index=0,
-            message=Message(
-                role="assistant",
-                content=text_content,
-                tool_calls=tool_calls or None,
-            ),
-            finish_reason=finish_reason,
-        )]
+        choices = [
+            Choice(
+                index=0,
+                message=Message(
+                    role="assistant",
+                    content=text_content,
+                    tool_calls=tool_calls or None,
+                ),
+                finish_reason=finish_reason,
+            )
+        ]
 
         usage = raw.usage if hasattr(raw, "usage") else None
         billed = getattr(usage, "billed_units", None) if usage else None
         parsed = None
         if response_format is not None and text_content:
             from llmgate.structured import validate_parsed  # noqa: PLC0415
+
             parsed = validate_parsed(text_content, response_format)
         return CompletionResponse(
             id=getattr(raw, "id", ""),
@@ -231,7 +257,12 @@ class CohereProvider(BaseProvider):
             usage=TokenUsage(
                 prompt_tokens=getattr(billed, "input_tokens", 0) if billed else 0,
                 completion_tokens=getattr(billed, "output_tokens", 0) if billed else 0,
-                total_tokens=(getattr(billed, "input_tokens", 0) + getattr(billed, "output_tokens", 0)) if billed else 0,
+                total_tokens=(
+                    getattr(billed, "input_tokens", 0)
+                    + getattr(billed, "output_tokens", 0)
+                )
+                if billed
+                else 0,
             ),
             raw=raw,
             parsed=parsed,
@@ -264,7 +295,7 @@ class CohereProvider(BaseProvider):
                 if hasattr(event, "type") and event.type == "content-delta":
                     text = getattr(event.delta, "message", None)
                     if text and hasattr(text, "content"):
-                        for block in (text.content or []):
+                        for block in text.content or []:
                             if hasattr(block, "text") and block.text:
                                 yield StreamChunk(delta=block.text)
         except Exception as exc:
@@ -277,7 +308,7 @@ class CohereProvider(BaseProvider):
                 if hasattr(event, "type") and event.type == "content-delta":
                     text = getattr(event.delta, "message", None)
                     if text and hasattr(text, "content"):
-                        for block in (text.content or []):
+                        for block in text.content or []:
                             if hasattr(block, "text") and block.text:
                                 yield StreamChunk(delta=block.text)
         except Exception as exc:
@@ -286,7 +317,11 @@ class CohereProvider(BaseProvider):
     def _wrap_exception(self, exc: Exception) -> None:
         msg = str(exc)
         exc_type = type(exc).__name__
-        if "401" in msg or "Unauthorized" in exc_type or "InvalidTokenError" in exc_type:
+        if (
+            "401" in msg
+            or "Unauthorized" in exc_type
+            or "InvalidTokenError" in exc_type
+        ):
             raise AuthError(msg, provider=self.name) from exc
         if "429" in msg or "TooManyRequests" in exc_type:
             raise RateLimitError(msg, provider=self.name) from exc

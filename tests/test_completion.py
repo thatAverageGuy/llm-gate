@@ -1,4 +1,5 @@
 """Tests for the top-level completion() and acompletion() functions."""
+
 from __future__ import annotations
 
 import sys
@@ -21,7 +22,9 @@ def _clear_cache() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _fake_response(provider: str = "openai", model: str = "gpt-4o-mini") -> CompletionResponse:
+def _fake_response(
+    provider: str = "openai", model: str = "gpt-4o-mini"
+) -> CompletionResponse:
     return CompletionResponse(
         id="fake-id",
         model=model,
@@ -44,39 +47,70 @@ def _fake_response(provider: str = "openai", model: str = "gpt-4o-mini") -> Comp
 
 class TestCompletionRouting:
     def test_routes_to_openai(self):
-        with patch("llmgate.providers.openai.OpenAIProvider.complete") as mock_complete, \
-             patch("llmgate.providers.openai.OpenAIProvider.__init__", return_value=None):
+        with (
+            patch("llmgate.providers.openai.OpenAIProvider.complete") as mock_complete,
+            patch(
+                "llmgate.providers.openai.OpenAIProvider.__init__", return_value=None
+            ),
+        ):
             mock_complete.return_value = _fake_response("openai")
             _clear_cache()
-            resp = completion("gpt-4o-mini", [{"role": "user", "content": "hi"}],
-                              api_key="test-key")
+            resp = completion(
+                "gpt-4o-mini", [{"role": "user", "content": "hi"}], api_key="test-key"
+            )
             assert resp.provider == "openai"
 
     def test_routes_to_anthropic(self):
-        with patch("llmgate.providers.anthropic.AnthropicProvider.complete") as mock_complete, \
-             patch("llmgate.providers.anthropic.AnthropicProvider.__init__", return_value=None):
-            mock_complete.return_value = _fake_response("anthropic", "claude-3-5-sonnet-20241022")
+        with (
+            patch(
+                "llmgate.providers.anthropic.AnthropicProvider.complete"
+            ) as mock_complete,
+            patch(
+                "llmgate.providers.anthropic.AnthropicProvider.__init__",
+                return_value=None,
+            ),
+        ):
+            mock_complete.return_value = _fake_response(
+                "anthropic", "claude-3-5-sonnet-20241022"
+            )
             _clear_cache()
-            resp = completion("claude-3-5-sonnet-20241022",
-                              [{"role": "user", "content": "hi"}], api_key="test-key")
+            resp = completion(
+                "claude-3-5-sonnet-20241022",
+                [{"role": "user", "content": "hi"}],
+                api_key="test-key",
+            )
             assert resp.provider == "anthropic"
 
     def test_routes_to_gemini(self):
-        with patch("llmgate.providers.gemini.GeminiProvider.complete") as mock_complete, \
-             patch("llmgate.providers.gemini.GeminiProvider.__init__", return_value=None):
+        with (
+            patch("llmgate.providers.gemini.GeminiProvider.complete") as mock_complete,
+            patch(
+                "llmgate.providers.gemini.GeminiProvider.__init__", return_value=None
+            ),
+        ):
             mock_complete.return_value = _fake_response("gemini", "gemini-1.5-flash")
             _clear_cache()
-            resp = completion("gemini-1.5-flash",
-                              [{"role": "user", "content": "hi"}], api_key="test-key")
+            resp = completion(
+                "gemini-1.5-flash",
+                [{"role": "user", "content": "hi"}],
+                api_key="test-key",
+            )
             assert resp.provider == "gemini"
 
     def test_routes_to_groq_with_prefix(self):
-        with patch("llmgate.providers.groq.GroqProvider.complete") as mock_complete, \
-             patch("llmgate.providers.groq.GroqProvider.__init__", return_value=None):
-            mock_complete.return_value = _fake_response("groq", "groq/llama-3.1-8b-instant")
+        with (
+            patch("llmgate.providers.groq.GroqProvider.complete") as mock_complete,
+            patch("llmgate.providers.groq.GroqProvider.__init__", return_value=None),
+        ):
+            mock_complete.return_value = _fake_response(
+                "groq", "groq/llama-3.1-8b-instant"
+            )
             _clear_cache()
-            resp = completion("groq/llama-3.1-8b-instant",
-                              [{"role": "user", "content": "hi"}], api_key="test-key")
+            resp = completion(
+                "groq/llama-3.1-8b-instant",
+                [{"role": "user", "content": "hi"}],
+                api_key="test-key",
+            )
             assert resp.provider == "groq"
 
     def test_unknown_model_raises(self):
@@ -86,26 +120,40 @@ class TestCompletionRouting:
 
     def test_stream_raises_not_supported(self):
         """stream=True with no error should return an Iterator."""
+
         def _fake_stream():
             yield StreamChunk(id="c", model="gpt-4o", provider="openai", delta="hi")
 
-        with patch("llmgate.providers.openai.OpenAIProvider.stream",
-                   return_value=_fake_stream()), \
-             patch("llmgate.providers.openai.OpenAIProvider.__init__", return_value=None):
+        with (
+            patch(
+                "llmgate.providers.openai.OpenAIProvider.stream",
+                return_value=_fake_stream(),
+            ),
+            patch(
+                "llmgate.providers.openai.OpenAIProvider.__init__", return_value=None
+            ),
+        ):
             _clear_cache()
-            chunks = list(completion("gpt-4o", [{"role": "user", "content": "hi"}], stream=True))
+            chunks = list(
+                completion("gpt-4o", [{"role": "user", "content": "hi"}], stream=True)
+            )
             assert len(chunks) == 1
             assert isinstance(chunks[0], StreamChunk)
             assert chunks[0].delta == "hi"
 
     def test_explicit_provider_override(self):
-        with patch("llmgate.providers.groq.GroqProvider.complete") as mock_complete, \
-             patch("llmgate.providers.groq.GroqProvider.__init__", return_value=None):
+        with (
+            patch("llmgate.providers.groq.GroqProvider.complete") as mock_complete,
+            patch("llmgate.providers.groq.GroqProvider.__init__", return_value=None),
+        ):
             mock_complete.return_value = _fake_response("groq", "llama-3.1-8b-instant")
             _clear_cache()
-            resp = completion("llama-3.1-8b-instant",
-                              [{"role": "user", "content": "hi"}],
-                              provider="groq", api_key="test-key")
+            resp = completion(
+                "llama-3.1-8b-instant",
+                [{"role": "user", "content": "hi"}],
+                provider="groq",
+                api_key="test-key",
+            )
             assert resp.provider == "groq"
 
 
@@ -117,23 +165,38 @@ class TestCompletionRouting:
 class TestACompletion:
     @pytest.mark.asyncio
     async def test_async_routes_to_openai(self):
-        with patch("llmgate.providers.openai.OpenAIProvider.acomplete", new_callable=AsyncMock) as mock_ac, \
-             patch("llmgate.providers.openai.OpenAIProvider.__init__", return_value=None):
+        with (
+            patch(
+                "llmgate.providers.openai.OpenAIProvider.acomplete",
+                new_callable=AsyncMock,
+            ) as mock_ac,
+            patch(
+                "llmgate.providers.openai.OpenAIProvider.__init__", return_value=None
+            ),
+        ):
             mock_ac.return_value = _fake_response("openai")
             _clear_cache()
-            resp = await acompletion("gpt-4o-mini",
-                                     [{"role": "user", "content": "hi"}], api_key="key")
+            resp = await acompletion(
+                "gpt-4o-mini", [{"role": "user", "content": "hi"}], api_key="key"
+            )
             assert resp.provider == "openai"
 
     @pytest.mark.asyncio
     async def test_async_stream_returns_iterator(self):
         """acompletion(stream=True) should return an AsyncIterator of StreamChunk."""
+
         async def _fake_astream():
             yield StreamChunk(id="c", model="gpt-4o", provider="openai", delta="hello")
 
-        with patch("llmgate.providers.openai.OpenAIProvider.astream",
-                   return_value=_fake_astream()), \
-             patch("llmgate.providers.openai.OpenAIProvider.__init__", return_value=None):
+        with (
+            patch(
+                "llmgate.providers.openai.OpenAIProvider.astream",
+                return_value=_fake_astream(),
+            ),
+            patch(
+                "llmgate.providers.openai.OpenAIProvider.__init__", return_value=None
+            ),
+        ):
             _clear_cache()
             chunks = []
             async for chunk in await acompletion(
@@ -151,8 +214,12 @@ class TestACompletion:
 
 class TestMessageNormalisation:
     def test_dict_messages_accepted(self):
-        with patch("llmgate.providers.openai.OpenAIProvider.complete") as mock_complete, \
-             patch("llmgate.providers.openai.OpenAIProvider.__init__", return_value=None):
+        with (
+            patch("llmgate.providers.openai.OpenAIProvider.complete") as mock_complete,
+            patch(
+                "llmgate.providers.openai.OpenAIProvider.__init__", return_value=None
+            ),
+        ):
             mock_complete.return_value = _fake_response("openai")
             _clear_cache()
             resp = completion(
@@ -163,8 +230,12 @@ class TestMessageNormalisation:
             assert resp is not None
 
     def test_message_objects_accepted(self):
-        with patch("llmgate.providers.openai.OpenAIProvider.complete") as mock_complete, \
-             patch("llmgate.providers.openai.OpenAIProvider.__init__", return_value=None):
+        with (
+            patch("llmgate.providers.openai.OpenAIProvider.complete") as mock_complete,
+            patch(
+                "llmgate.providers.openai.OpenAIProvider.__init__", return_value=None
+            ),
+        ):
             mock_complete.return_value = _fake_response("openai")
             _clear_cache()
             resp = completion(

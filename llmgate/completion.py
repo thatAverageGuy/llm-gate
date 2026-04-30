@@ -24,15 +24,31 @@ Provider resolution order (single-model path):
 Provider instances are cached on the ``ProviderRegistry`` so SDK clients aren't
 re-created for every call.
 """
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, AsyncIterator, Iterator, Literal, TypeVar, Union, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    AsyncIterator,
+    Iterator,
+    Literal,
+    TypeVar,
+    Union,
+    overload,
+)
 
 if TYPE_CHECKING:
     from llmgate.middleware.base import BaseMiddleware
 
 from llmgate.base import BaseProvider
-from llmgate.exceptions import AuthError, ConfigError, ModelNotFoundError, ProviderAPIError, RateLimitError
+from llmgate.exceptions import (
+    AuthError,
+    ConfigError,
+    ModelNotFoundError,
+    ProviderAPIError,
+    RateLimitError,
+)
 
 
 # Core providers (always available — hard deps)
@@ -42,7 +58,11 @@ from llmgate.providers.groq import GroqProvider
 from llmgate.providers.openai import OpenAIProvider
 
 from llmgate.types import (
-    CompletionRequest, CompletionResponse, Message, StreamChunk, ToolDefinition,
+    CompletionRequest,
+    CompletionResponse,
+    Message,
+    StreamChunk,
+    ToolDefinition,
 )
 
 T = TypeVar("T")
@@ -63,10 +83,10 @@ _DEFAULT_FALLBACK_ON: tuple[type[Exception], ...] = (
 #: Loaded lazily so a missing SDK never breaks `import llmgate`.
 _OPTIONAL_PROVIDERS: list[tuple[str, str, str]] = [
     ("mistral/", "llmgate.providers.mistral", "MistralProvider"),
-    ("cohere/",  "llmgate.providers.cohere",  "CohereProvider"),
-    ("azure/",   "llmgate.providers.azure",   "AzureOpenAIProvider"),
+    ("cohere/", "llmgate.providers.cohere", "CohereProvider"),
+    ("azure/", "llmgate.providers.azure", "AzureOpenAIProvider"),
     ("bedrock/", "llmgate.providers.bedrock", "BedrockProvider"),
-    ("ollama/",  "llmgate.providers.ollama",  "OllamaProvider"),
+    ("ollama/", "llmgate.providers.ollama", "OllamaProvider"),
 ]
 
 _optional_provider_cache: dict[str, type[BaseProvider]] = {}
@@ -79,6 +99,7 @@ def _get_optional_provider_class(prefix: str) -> type[BaseProvider] | None:
     for p, module_path, class_name in _OPTIONAL_PROVIDERS:
         if p == prefix:
             import importlib  # noqa: PLC0415
+
             mod = importlib.import_module(module_path)
             cls = getattr(mod, class_name)
             _optional_provider_cache[prefix] = cls
@@ -96,7 +117,8 @@ _CORE_PROVIDER_CLASSES: list[type[BaseProvider]] = [
 
 #: Map of provider name → class for explicit ``provider=`` override (core providers only at load time).
 _PROVIDER_NAME_MAP: dict[str, type[BaseProvider]] = {
-    cls.name: cls for cls in _CORE_PROVIDER_CLASSES  # type: ignore[attr-defined]
+    cls.name: cls
+    for cls in _CORE_PROVIDER_CLASSES  # type: ignore[attr-defined]
 }
 
 #: Cache of instantiated providers keyed by (provider_name, api_key or None)
@@ -117,12 +139,18 @@ def _get_provider(
         if cls is None:
             # Try finding the optional provider by name
             for _prefix, _module, _cls_name in _OPTIONAL_PROVIDERS:
-                _provider_name = _cls_name.lower().replace("provider", "").replace("openai", "azure").rstrip()
+                _provider_name = (
+                    _cls_name.lower()
+                    .replace("provider", "")
+                    .replace("openai", "azure")
+                    .rstrip()
+                )
                 # Match by the known name keys
                 pass
             # Build up full name map including optional ones on demand
             for _pfx, _mod, _clsname in _OPTIONAL_PROVIDERS:
                 import importlib  # noqa: PLC0415
+
                 try:
                     _mod_obj = importlib.import_module(_mod)
                     _opt_cls = getattr(_mod_obj, _clsname)
@@ -132,10 +160,11 @@ def _get_provider(
                 except ImportError:
                     continue
         if cls is None:
-            available = list(_PROVIDER_NAME_MAP) + [p for _, _, p in _OPTIONAL_PROVIDERS]
+            available = list(_PROVIDER_NAME_MAP) + [
+                p for _, _, p in _OPTIONAL_PROVIDERS
+            ]
             raise ConfigError(
-                f"Unknown provider '{provider_name}'. "
-                f"Available: {available}"
+                f"Unknown provider '{provider_name}'. Available: {available}"
             )
     else:
         # Auto-detect: try core providers first
@@ -165,10 +194,7 @@ _get_or_create_provider = _get_provider
 
 
 def _normalise_messages(messages: list[dict[str, str] | Message]) -> list[Message]:
-    return [
-        Message(**m) if isinstance(m, dict) else m
-        for m in messages
-    ]
+    return [Message(**m) if isinstance(m, dict) else m for m in messages]
 
 
 def _build_request(
@@ -177,18 +203,26 @@ def _build_request(
     stream: bool,
     kwargs: dict[str, Any],
 ) -> CompletionRequest:
-    known_keys = {"max_tokens", "temperature", "top_p", "tools", "tool_choice",
-                  "extra_kwargs", "middleware", "provider", "api_key", "response_format",
-                  "stream_fallback_mode", "stream_resume_prompt"}
+    known_keys = {
+        "max_tokens",
+        "temperature",
+        "top_p",
+        "tools",
+        "tool_choice",
+        "extra_kwargs",
+        "middleware",
+        "provider",
+        "api_key",
+        "response_format",
+        "stream_fallback_mode",
+        "stream_resume_prompt",
+    }
     extra = {k: v for k, v in kwargs.items() if k not in known_keys}
     # Normalise tools: accept list of ToolDefinition or plain dicts
     raw_tools = kwargs.get("tools")
     tools: list[ToolDefinition] | None = None
     if raw_tools is not None:
-        tools = [
-            ToolDefinition(**t) if isinstance(t, dict) else t
-            for t in raw_tools
-        ]
+        tools = [ToolDefinition(**t) if isinstance(t, dict) else t for t in raw_tools]
     response_format = kwargs.get("response_format")
     if response_format is not None and stream:
         raise ValueError(
@@ -309,6 +343,7 @@ def completion(
     if isinstance(model, list):
         if stream:
             from llmgate.fallback import _try_models_stream_sync  # noqa: PLC0415
+
             return _try_models_stream_sync(
                 model,
                 messages,
@@ -321,6 +356,7 @@ def completion(
                 **kwargs,
             )
         from llmgate.fallback import _try_models_sync  # noqa: PLC0415
+
         return _try_models_sync(
             model,
             messages,
@@ -337,8 +373,10 @@ def completion(
 
     if middleware:
         from llmgate.gate import _build_sync_chain  # noqa: PLC0415
+
         def _inner(req: CompletionRequest) -> CompletionResponse:
             return provider_inst.complete(req)
+
         if stream:
             _mw_chain = _inner  # streaming ignores middleware for now
             return provider_inst.stream(request)
@@ -407,6 +445,7 @@ async def acompletion(
     if isinstance(model, list):
         if stream:
             from llmgate.fallback import _try_models_stream_async  # noqa: PLC0415
+
             return _try_models_stream_async(
                 model,
                 messages,
@@ -419,6 +458,7 @@ async def acompletion(
                 **kwargs,
             )
         from llmgate.fallback import _try_models_async  # noqa: PLC0415
+
         return await _try_models_async(
             model,
             messages,
@@ -435,8 +475,10 @@ async def acompletion(
 
     if middleware:
         from llmgate.gate import _build_async_chain  # noqa: PLC0415
+
         async def _inner(req: CompletionRequest) -> CompletionResponse:
             return await provider_inst.acomplete(req)
+
         if stream:
             return provider_inst.astream(request)
         chain = _build_async_chain(middleware, _inner)
@@ -484,8 +526,7 @@ def parse(
     )
     if resp.parsed is None:  # type: ignore[union-attr]
         raise ValueError(
-            f"Provider returned no structured output. "
-            f"Raw text: {resp.text!r}"  # type: ignore[union-attr]
+            f"Provider returned no structured output. Raw text: {resp.text!r}"  # type: ignore[union-attr]
         )
     return resp.parsed  # type: ignore[return-value,union-attr]
 
@@ -512,7 +553,6 @@ async def aparse(
     )
     if resp.parsed is None:  # type: ignore[union-attr]
         raise ValueError(
-            f"Provider returned no structured output. "
-            f"Raw text: {resp.text!r}"  # type: ignore[union-attr]
+            f"Provider returned no structured output. Raw text: {resp.text!r}"  # type: ignore[union-attr]
         )
     return resp.parsed  # type: ignore[return-value,union-attr]

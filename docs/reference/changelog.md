@@ -4,6 +4,15 @@ All notable changes to llmgate are documented here.
 
 ---
 
+## v0.8.1 — 2026-04-30
+
+### ✨ Added — Embedding Middleware
+
+- **Embedding Middleware Support** — Middleware chains (`RetryMiddleware`, `LoggingMiddleware`, etc.) are now fully supported for embedding calls.
+- `BaseMiddleware` extended with `embed_handle` and `aembed_handle` methods for synchronous and asynchronous embedding hooks.
+- `LLMGate.embed` and `LLMGate.aembed` now properly pass requests through the middleware stack before hitting the providers.
+- `RetryMiddleware` updated to natively catch transient errors on embeddings and retry with exponential backoff.
+
 ## v0.8.0 — 2026-04-30
 
 ### ✨ Added — Streaming Fallback Resilience

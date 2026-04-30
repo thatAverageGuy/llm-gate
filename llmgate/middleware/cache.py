@@ -12,6 +12,7 @@ Usage::
 
     gate = LLMGate(middleware=[CacheMiddleware(ttl=300, maxsize=256)])
 """
+
 from __future__ import annotations
 
 import hashlib

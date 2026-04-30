@@ -2,6 +2,7 @@
 Real API integration test for llmgate.
 Loads .env from the project root and calls Groq, Anthropic, and Gemini.
 """
+
 import os
 import sys
 from pathlib import Path
@@ -20,17 +21,19 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from llmgate import completion  # noqa: E402
 
-MESSAGES = [{"role": "user", "content": "Say exactly: 'llmgate works!' and nothing else."}]
-
-TESTS = [
-    ("Groq",      "groq/llama-3.1-8b-instant"),
-    ("Anthropic", "claude-3-haiku-20240307"),
-    ("Gemini",    "gemini-2.5-flash-lite"),
+MESSAGES = [
+    {"role": "user", "content": "Say exactly: 'llmgate works!' and nothing else."}
 ]
 
-print(f"\n{'='*55}")
+TESTS = [
+    ("Groq", "groq/llama-3.1-8b-instant"),
+    ("Anthropic", "claude-3-haiku-20240307"),
+    ("Gemini", "gemini-2.5-flash-lite"),
+]
+
+print(f"\n{'=' * 55}")
 print("  llmgate real-API integration test")
-print(f"{'='*55}\n")
+print(f"{'=' * 55}\n")
 
 passed = failed = 0
 for name, model in TESTS:
@@ -46,29 +49,31 @@ for name, model in TESTS:
         print(f"  ❌  {type(exc).__name__}: {exc}\n")
         failed += 1
 
-print(f"{'='*55}")
+print(f"{'=' * 55}")
 print(f"  Results: {passed} passed, {failed} failed")
-print(f"{'='*55}\n")
+print(f"{'=' * 55}\n")
 
 # ---------------------------------------------------------------------------
 # Streaming smoke test
 # ---------------------------------------------------------------------------
 
-print(f"\n{'='*55}")
+print(f"\n{'=' * 55}")
 print("  llmgate streaming smoke test")
-print(f"{'='*55}\n")
+print(f"{'=' * 55}\n")
 
 STREAM_TESTS = [
-    ("Groq (stream)",      "groq/llama-3.1-8b-instant"),
+    ("Groq (stream)", "groq/llama-3.1-8b-instant"),
     ("Anthropic (stream)", "claude-3-haiku-20240307"),
-    ("Gemini (stream)",    "gemini-2.5-flash-lite"),
+    ("Gemini (stream)", "gemini-2.5-flash-lite"),
 ]
 
 stream_passed = stream_failed = 0
 for name, model in STREAM_TESTS:
     print(f"[{name}] model={model}")
     try:
-        chunks = list(completion(model, MESSAGES, max_tokens=30, temperature=0.0, stream=True))
+        chunks = list(
+            completion(model, MESSAGES, max_tokens=30, temperature=0.0, stream=True)
+        )
         full_text = "".join(c.delta for c in chunks)
         print(f"  ✅  chunks    : {len(chunks)}")
         print(f"      reassembled: {full_text.strip()!r}\n")
@@ -77,9 +82,9 @@ for name, model in STREAM_TESTS:
         print(f"  ❌  {type(exc).__name__}: {exc}\n")
         stream_failed += 1
 
-print(f"{'='*55}")
+print(f"{'=' * 55}")
 print(f"  Streaming: {stream_passed} passed, {stream_failed} failed")
-print(f"{'='*55}\n")
+print(f"{'=' * 55}\n")
 
 # ---------------------------------------------------------------------------
 # Tool calling smoke test (multi-turn)
@@ -87,21 +92,25 @@ print(f"{'='*55}\n")
 
 from llmgate.types import FunctionDefinition, Message, ToolDefinition  # noqa: E402
 
-print(f"\n{'='*55}")
+print(f"\n{'=' * 55}")
 print("  llmgate tool-calling smoke test")
-print(f"{'='*55}\n")
+print(f"{'=' * 55}\n")
 
-TOOLS = [ToolDefinition(function=FunctionDefinition(
-    name="get_weather",
-    description="Get current weather conditions for a given city.",
-    parameters={
-        "type": "object",
-        "properties": {
-            "city": {"type": "string", "description": "City name"},
-        },
-        "required": ["city"],
-    },
-))]
+TOOLS = [
+    ToolDefinition(
+        function=FunctionDefinition(
+            name="get_weather",
+            description="Get current weather conditions for a given city.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "city": {"type": "string", "description": "City name"},
+                },
+                "required": ["city"],
+            },
+        )
+    )
+]
 
 TOOL_TESTS = [
     ("Groq (tools)", "groq/llama-3.1-8b-instant"),
@@ -113,7 +122,9 @@ tools_passed = tools_failed = 0
 for name, model in TOOL_TESTS:
     print(f"[{name}] model={model}")
     try:
-        user_msg = [{"role": "user", "content": "What's the weather in London right now?"}]
+        user_msg = [
+            {"role": "user", "content": "What's the weather in London right now?"}
+        ]
         resp = completion(model, user_msg, tools=TOOLS, tool_choice="auto")
 
         if resp.tool_calls:
@@ -142,13 +153,13 @@ for name, model in TOOL_TESTS:
         print(f"  ❌  {type(exc).__name__}: {exc}\n")
         tools_failed += 1
 
-print(f"{'='*55}")
+print(f"{'=' * 55}")
 print(f"  Tool calling: {tools_passed} passed, {tools_failed} failed")
-print(f"{'='*55}\n")
+print(f"{'=' * 55}\n")
 
-print(f"{'='*55}")
+print(f"{'=' * 55}")
 print(f"  Tool calling: {tools_passed} passed, {tools_failed} failed")
-print(f"{'='*55}\n")
+print(f"{'=' * 55}\n")
 
 # ---------------------------------------------------------------------------
 # Middleware smoke test (LLMGate client)
@@ -159,26 +170,35 @@ from llmgate.middleware import CacheMiddleware, LoggingMiddleware, RetryMiddlewa
 
 logging.basicConfig(level=logging.DEBUG)
 
-print(f"\n{'='*55}")
+print(f"\n{'=' * 55}")
 print("  llmgate middleware smoke test")
-print(f"{'='*55}\n")
+print(f"{'=' * 55}\n")
 
 mw_passed = mw_failed = 0
-SIMPLE_MSGS = [{"role": "user", "content": "Say exactly: 'middleware works!' and nothing else."}]
+SIMPLE_MSGS = [
+    {"role": "user", "content": "Say exactly: 'middleware works!' and nothing else."}
+]
 
-for name, model in [("Groq", "groq/llama-3.1-8b-instant"), ("Gemini", "gemini-2.5-flash-lite")]:
+for name, model in [
+    ("Groq", "groq/llama-3.1-8b-instant"),
+    ("Gemini", "gemini-2.5-flash-lite"),
+]:
     print(f"[{name}] testing retry + logging + cache")
     try:
-        gate = LLMGate(middleware=[
-            RetryMiddleware(max_retries=2),
-            LoggingMiddleware(level="DEBUG", mask_content=True),
-            CacheMiddleware(ttl=60),
-        ])
+        gate = LLMGate(
+            middleware=[
+                RetryMiddleware(max_retries=2),
+                LoggingMiddleware(level="DEBUG", mask_content=True),
+                CacheMiddleware(ttl=60),
+            ]
+        )
         r1 = gate.completion(model, SIMPLE_MSGS, max_tokens=20, temperature=0.0)
         r2 = gate.completion(model, SIMPLE_MSGS, max_tokens=20, temperature=0.0)
         cache_hit = r1 is r2
         print(f"  ✅  r1 text : {r1.text.strip()!r}")
-        print(f"  ✅  cache   : {'HIT (r2 is r1)' if cache_hit else 'MISS — check TTL'}")
+        print(
+            f"  ✅  cache   : {'HIT (r2 is r1)' if cache_hit else 'MISS — check TTL'}"
+        )
         if not cache_hit:
             raise AssertionError("Cache miss on identical second call!")
         print()
@@ -187,8 +207,37 @@ for name, model in [("Groq", "groq/llama-3.1-8b-instant"), ("Gemini", "gemini-2.
         print(f"  ❌  {type(exc).__name__}: {exc}\n")
         mw_failed += 1
 
-print(f"{'='*55}")
+print(f"{'=' * 55}")
 print(f"  Middleware: {mw_passed} passed, {mw_failed} failed")
-print(f"{'='*55}\n")
+print(f"{'=' * 55}\n")
 
-sys.exit(1 if (failed or stream_failed or tools_failed or mw_failed) else 0)
+# ---------------------------------------------------------------------------
+# Embedding smoke test
+# ---------------------------------------------------------------------------
+from llmgate import embed  # noqa: E402
+
+print(f"\n{'=' * 55}")
+print("  llmgate embedding smoke test")
+print(f"{'=' * 55}\n")
+
+embed_passed = embed_failed = 0
+for name, model in [
+    ("OpenAI Embed", "text-embedding-3-small"),
+    ("Gemini Embed", "gemini/text-embedding-004"),
+]:
+    print(f"[{name}] testing embedding")
+    try:
+        resp = embed(model, "This is a live embedding test.")
+        vec = resp.embeddings[0]
+        print(f"  ✅  vector len : {len(vec)}")
+        print(f"      tokens     : {resp.usage.total_tokens}")
+        embed_passed += 1
+    except Exception as exc:
+        print(f"  ❌  {type(exc).__name__}: {exc}\n")
+        embed_failed += 1
+
+print(f"{'=' * 55}")
+print(f"  Embedding: {embed_passed} passed, {embed_failed} failed")
+print(f"{'=' * 55}\n")
+
+sys.exit(1 if (failed or stream_failed or tools_failed or mw_failed or embed_failed) else 0)

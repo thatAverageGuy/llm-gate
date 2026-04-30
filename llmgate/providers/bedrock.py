@@ -17,6 +17,7 @@ The Converse API is a unified interface that works across all Bedrock models
     ``AWS_ACCESS_KEY_ID``, ``AWS_SECRET_ACCESS_KEY``, ``AWS_DEFAULT_REGION``
     — or configure via ``~/.aws/credentials`` / IAM role.
 """
+
 from __future__ import annotations
 
 import os
@@ -25,8 +26,13 @@ from typing import Any, AsyncIterator, ClassVar, Iterator
 from llmgate.base import BaseProvider
 from llmgate.exceptions import AuthError, ProviderAPIError, RateLimitError
 from llmgate.types import (
-    Choice, CompletionRequest, CompletionResponse, Message,
-    StreamChunk, ToolCall, TokenUsage,
+    Choice,
+    CompletionRequest,
+    CompletionResponse,
+    Message,
+    StreamChunk,
+    ToolCall,
+    TokenUsage,
 )
 
 
@@ -56,25 +62,37 @@ def _to_bedrock_messages(messages: list[Message]) -> tuple[list[dict], str | Non
                     content.extend(vision.to_bedrock_content(m.content))
             if m.tool_calls:
                 for tc in m.tool_calls:
-                    content.append({
-                        "toolUse": {
-                            "toolUseId": tc.id,
-                            "name": tc.function,
-                            "input": tc.arguments or {},
+                    content.append(
+                        {
+                            "toolUse": {
+                                "toolUseId": tc.id,
+                                "name": tc.function,
+                                "input": tc.arguments or {},
+                            }
                         }
-                    })
+                    )
             bedrock_msgs.append({"role": "assistant", "content": content})
         elif m.role == "tool":
-            bedrock_msgs.append({
-                "role": "user",
-                "content": [{
-                    "toolResult": {
-                        "toolUseId": m.tool_call_id or "",
-                        "content": [{"text": m.content or "" if isinstance(m.content, str) else ""}],
-                        "status": "success",
-                    }
-                }],
-            })
+            bedrock_msgs.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "toolResult": {
+                                "toolUseId": m.tool_call_id or "",
+                                "content": [
+                                    {
+                                        "text": m.content or ""
+                                        if isinstance(m.content, str)
+                                        else ""
+                                    }
+                                ],
+                                "status": "success",
+                            }
+                        }
+                    ],
+                }
+            )
 
     return bedrock_msgs, system_prompt
 
@@ -110,7 +128,9 @@ class BedrockProvider(BaseProvider):
         )
         session_kwargs: dict[str, Any] = {}
         if aws_access_key_id or os.environ.get("AWS_ACCESS_KEY_ID"):
-            session_kwargs["aws_access_key_id"] = aws_access_key_id or os.environ["AWS_ACCESS_KEY_ID"]
+            session_kwargs["aws_access_key_id"] = (
+                aws_access_key_id or os.environ["AWS_ACCESS_KEY_ID"]
+            )
             session_kwargs["aws_secret_access_key"] = (
                 aws_secret_access_key or os.environ.get("AWS_SECRET_ACCESS_KEY", "")
             )
@@ -138,6 +158,7 @@ class BedrockProvider(BaseProvider):
         messages = request.messages
         if request.response_format is not None:
             from llmgate.structured import inject_schema_prompt  # noqa: PLC0415
+
             messages = inject_schema_prompt(messages, request.response_format)
         bedrock_messages, system_prompt = _to_bedrock_messages(messages)
 
@@ -178,7 +199,9 @@ class BedrockProvider(BaseProvider):
 
         return params
 
-    def _map_response(self, raw: Any, model: str, response_format: Any = None) -> CompletionResponse:
+    def _map_response(
+        self, raw: Any, model: str, response_format: Any = None
+    ) -> CompletionResponse:
         output = raw.get("output", {}).get("message", {})
         content_blocks = output.get("content", [])
         stop_reason = raw.get("stopReason", "end_turn")
@@ -191,11 +214,13 @@ class BedrockProvider(BaseProvider):
                 text_parts.append(block["text"])
             elif "toolUse" in block:
                 tu = block["toolUse"]
-                tool_calls.append(ToolCall(
-                    id=tu.get("toolUseId", ""),
-                    function=tu.get("name", ""),
-                    arguments=tu.get("input", {}),
-                ))
+                tool_calls.append(
+                    ToolCall(
+                        id=tu.get("toolUseId", ""),
+                        function=tu.get("name", ""),
+                        arguments=tu.get("input", {}),
+                    )
+                )
 
         text = "".join(text_parts) or None
         finish_reason = "tool_calls" if tool_calls else stop_reason
@@ -204,20 +229,23 @@ class BedrockProvider(BaseProvider):
         parsed = None
         if response_format is not None and text:
             from llmgate.structured import validate_parsed  # noqa: PLC0415
+
             parsed = validate_parsed(text, response_format)
         return CompletionResponse(
             id=raw.get("ResponseMetadata", {}).get("RequestId", ""),
             model=model,
             provider=self.name,
-            choices=[Choice(
-                index=0,
-                message=Message(
-                    role="assistant",
-                    content=text,
-                    tool_calls=tool_calls or None,
-                ),
-                finish_reason=finish_reason,
-            )],
+            choices=[
+                Choice(
+                    index=0,
+                    message=Message(
+                        role="assistant",
+                        content=text,
+                        tool_calls=tool_calls or None,
+                    ),
+                    finish_reason=finish_reason,
+                )
+            ],
             usage=TokenUsage(
                 prompt_tokens=usage_raw.get("inputTokens", 0),
                 completion_tokens=usage_raw.get("outputTokens", 0),
@@ -241,6 +269,7 @@ class BedrockProvider(BaseProvider):
 
     async def acomplete(self, request: CompletionRequest) -> CompletionResponse:
         import asyncio  # noqa: PLC0415
+
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self.complete, request)
 
@@ -259,6 +288,7 @@ class BedrockProvider(BaseProvider):
     async def astream(self, request: CompletionRequest) -> AsyncIterator[StreamChunk]:
         # boto3 is sync; collect all chunks in executor and yield
         import asyncio  # noqa: PLC0415
+
         chunks: list[StreamChunk] = await asyncio.get_event_loop().run_in_executor(
             None, lambda: list(self.stream(request))
         )
@@ -270,7 +300,10 @@ class BedrockProvider(BaseProvider):
         error_code = getattr(getattr(exc, "response", {}), "get", lambda k, d=None: d)(
             "Error", {}
         ).get("Code", "")
-        if "ThrottlingException" in type(exc).__name__ or error_code == "ThrottlingException":
+        if (
+            "ThrottlingException" in type(exc).__name__
+            or error_code == "ThrottlingException"
+        ):
             raise RateLimitError(msg, provider=self.name) from exc
         if "AccessDenied" in type(exc).__name__ or "UnauthorizedClient" in msg:
             raise AuthError(msg, provider=self.name) from exc

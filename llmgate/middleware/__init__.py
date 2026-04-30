@@ -20,6 +20,7 @@ Quick reference::
         CacheMiddleware(ttl=300),
     ])
 """
+
 from llmgate.middleware.base import BaseMiddleware
 from llmgate.middleware.cache import CacheMiddleware
 from llmgate.middleware.fallback import FallbackMiddleware
@@ -35,4 +36,3 @@ __all__ = [
     "RateLimitMiddleware",
     "FallbackMiddleware",
 ]
-

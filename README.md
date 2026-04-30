@@ -218,6 +218,8 @@ movie = await aparse("claude-3-5-haiku-20241022", messages, response_format=Movi
 
 ## Embeddings
 
+> **Model Prefixes & Auto-Routing:** If a model string does not contain a recognized prefix (like `gemini/`, `cohere/`, `mistral/`, `bedrock/`, `ollama/`, `azure/`), it will **default to OpenAI**. Since OpenAI's embedding models (e.g., `text-embedding-3-small`) lack a distinct provider prefix like `gpt-`, they are routed to OpenAI by default. For all other providers, you **must** include the explicit provider prefix to avoid accidental routing to OpenAI.
+
 ```python
 from llmgate import embed, aembed
 

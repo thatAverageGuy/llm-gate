@@ -19,6 +19,7 @@ Usage::
 
     gate = LLMGate(middleware=[RetryMiddleware(max_retries=3, backoff_factor=1.0)])
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -26,8 +27,19 @@ import random
 import time
 
 from llmgate.exceptions import ProviderAPIError, RateLimitError
-from llmgate.middleware.base import AsyncNext, BaseMiddleware, SyncNext
-from llmgate.types import CompletionRequest, CompletionResponse
+from llmgate.middleware.base import (
+    AsyncEmbedNext,
+    AsyncNext,
+    BaseMiddleware,
+    SyncEmbedNext,
+    SyncNext,
+)
+from llmgate.types import (
+    CompletionRequest,
+    CompletionResponse,
+    EmbeddingRequest,
+    EmbeddingResponse,
+)
 
 
 class RetryMiddleware(BaseMiddleware):
@@ -74,7 +86,7 @@ class RetryMiddleware(BaseMiddleware):
                 return float(retry_after)
             except (TypeError, ValueError):
                 pass
-        return self.backoff_factor * (2 ** attempt) + random.uniform(0, self.jitter_max)
+        return self.backoff_factor * (2**attempt) + random.uniform(0, self.jitter_max)
 
     def handle(
         self,
@@ -99,6 +111,40 @@ class RetryMiddleware(BaseMiddleware):
         request: CompletionRequest,
         call_next: AsyncNext,
     ) -> CompletionResponse:
+        last_exc: Exception | None = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                return await call_next(request)
+            except Exception as exc:
+                if not self._should_retry(exc) or attempt >= self.max_retries:
+                    raise
+                last_exc = exc
+                wait = self._wait_time(attempt, exc)
+                await asyncio.sleep(wait)
+        raise last_exc  # type: ignore[misc]
+
+    def embed_handle(
+        self,
+        request: EmbeddingRequest,
+        call_next: SyncEmbedNext,
+    ) -> EmbeddingResponse:
+        last_exc: Exception | None = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                return call_next(request)
+            except Exception as exc:
+                if not self._should_retry(exc) or attempt >= self.max_retries:
+                    raise
+                last_exc = exc
+                wait = self._wait_time(attempt, exc)
+                time.sleep(wait)
+        raise last_exc  # type: ignore[misc]
+
+    async def aembed_handle(
+        self,
+        request: EmbeddingRequest,
+        call_next: AsyncEmbedNext,
+    ) -> EmbeddingResponse:
         last_exc: Exception | None = None
         for attempt in range(self.max_retries + 1):
             try:

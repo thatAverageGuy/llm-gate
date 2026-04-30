@@ -13,6 +13,7 @@ Tool/function calling API compatible with OpenAI format.
 **Install**: ``pip install llmgate[mistral]``
 **Env var**: ``MISTRAL_API_KEY``
 """
+
 from __future__ import annotations
 
 import json
@@ -22,8 +23,13 @@ from typing import Any, AsyncIterator, ClassVar, Iterator
 from llmgate.base import BaseProvider
 from llmgate.exceptions import AuthError, ProviderAPIError, RateLimitError
 from llmgate.types import (
-    Choice, CompletionRequest, CompletionResponse, Message,
-    StreamChunk, ToolCall, TokenUsage,
+    Choice,
+    CompletionRequest,
+    CompletionResponse,
+    Message,
+    StreamChunk,
+    ToolCall,
+    TokenUsage,
 )
 
 
@@ -53,6 +59,7 @@ class MistralProvider(BaseProvider):
 
     def _build_params(self, request: CompletionRequest) -> dict[str, Any]:
         from llmgate import vision  # noqa: PLC0415
+
         model = self._strip_prefix(request.model)
         messages = []
         for m in request.messages:
@@ -89,7 +96,9 @@ class MistralProvider(BaseProvider):
             params["response_format"] = {"type": "json_object"}
         return params
 
-    def _map_response(self, raw: Any, model: str, response_format: Any = None) -> CompletionResponse:
+    def _map_response(
+        self, raw: Any, model: str, response_format: Any = None
+    ) -> CompletionResponse:
         choices = []
         for c in raw.choices:
             msg = c.message
@@ -102,24 +111,29 @@ class MistralProvider(BaseProvider):
                             args = json.loads(args)
                         except json.JSONDecodeError:
                             pass
-                    tool_calls.append(ToolCall(
-                        id=tc.id,
-                        function=tc.function.name,
-                        arguments=args,
-                    ))
-            choices.append(Choice(
-                index=c.index,
-                message=Message(
-                    role=msg.role,
-                    content=msg.content,
-                    tool_calls=tool_calls or None,
-                ),
-                finish_reason=c.finish_reason or "stop",
-            ))
+                    tool_calls.append(
+                        ToolCall(
+                            id=tc.id,
+                            function=tc.function.name,
+                            arguments=args,
+                        )
+                    )
+            choices.append(
+                Choice(
+                    index=c.index,
+                    message=Message(
+                        role=msg.role,
+                        content=msg.content,
+                        tool_calls=tool_calls or None,
+                    ),
+                    finish_reason=c.finish_reason or "stop",
+                )
+            )
         usage = raw.usage
         parsed = None
         if response_format is not None and choices:
             from llmgate.structured import validate_parsed  # noqa: PLC0415
+
             parsed = validate_parsed(choices[0].message.content, response_format)
         return CompletionResponse(
             id=raw.id,

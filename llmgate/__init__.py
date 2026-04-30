@@ -39,6 +39,7 @@ With middleware::
     gate = LLMGate(middleware=[RetryMiddleware(max_retries=3), CacheMiddleware(ttl=300)])
     resp = gate.completion("groq/llama-3.1-8b-instant", messages)
 """
+
 from __future__ import annotations
 
 from llmgate.batch import abatch, batch
@@ -87,7 +88,7 @@ from llmgate.types import (
     ToolDefinition,
 )
 
-__version__ = "0.8.0"
+__version__ = "0.8.1"
 __all__ = [
     # Completion API
     "completion",

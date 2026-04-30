@@ -5,6 +5,7 @@ Unit tests for streaming fallback (stream_fallback_mode: restart / prefill / use
 
 All providers are fully mocked — no real API calls made.
 """
+
 from __future__ import annotations
 
 import warnings
@@ -21,21 +22,28 @@ from llmgate.types import CompletionRequest, StreamChunk
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _chunk(delta: str, model: str = "model-a", provider: str = "prov") -> StreamChunk:
     return StreamChunk(id="c1", model=model, provider=provider, delta=delta)
 
 
-def _make_stream(*chunks: StreamChunk, then_raise: Exception | None = None) -> Iterator[StreamChunk]:
+def _make_stream(
+    *chunks: StreamChunk, then_raise: Exception | None = None
+) -> Iterator[StreamChunk]:
     """Return a generator that yields chunks, then optionally raises."""
+
     def _gen():
         for c in chunks:
             yield c
         if then_raise:
             raise then_raise
+
     return _gen()
 
 
-async def _async_gen(*chunks: StreamChunk, then_raise: Exception | None = None) -> AsyncIterator[StreamChunk]:
+async def _async_gen(
+    *chunks: StreamChunk, then_raise: Exception | None = None
+) -> AsyncIterator[StreamChunk]:
     for c in chunks:
         yield c
     if then_raise:
@@ -53,6 +61,7 @@ MESSAGES = [{"role": "user", "content": "Hello"}]
 # _try_models_stream_sync — restart mode
 # ---------------------------------------------------------------------------
 
+
 class TestRestartModeSync:
     def _run(self, models, side_effects, **kw):
         """Patch providers so each model returns a stream or raises."""
@@ -65,15 +74,23 @@ class TestRestartModeSync:
             prov.stream.side_effect = side_effects[model]
             return prov
 
-        with patch("llmgate.fallback._get_provider", side_effect=fake_get_provider), \
-             patch("llmgate.fallback._build_request", return_value=MagicMock(spec=CompletionRequest)):
-            chunks = list(_try_models_stream_sync(
-                models, MESSAGES,
-                fallback_on=(RateLimitError,),
-                middleware=None,
-                mode=kw.get("mode", "restart"),
-                stream_resume_prompt=kw.get("stream_resume_prompt"),
-            ))
+        with (
+            patch("llmgate.fallback._get_provider", side_effect=fake_get_provider),
+            patch(
+                "llmgate.fallback._build_request",
+                return_value=MagicMock(spec=CompletionRequest),
+            ),
+        ):
+            chunks = list(
+                _try_models_stream_sync(
+                    models,
+                    MESSAGES,
+                    fallback_on=(RateLimitError,),
+                    middleware=None,
+                    mode=kw.get("mode", "restart"),
+                    stream_resume_prompt=kw.get("stream_resume_prompt"),
+                )
+            )
         return chunks
 
     def test_primary_succeeds_no_fallback(self):
@@ -145,8 +162,14 @@ class TestRestartModeSync:
             yield
 
         from llmgate.fallback import _try_models_stream_sync
-        with patch("llmgate.fallback._get_provider") as gp, \
-             patch("llmgate.fallback._build_request", return_value=MagicMock(spec=CompletionRequest)):
+
+        with (
+            patch("llmgate.fallback._get_provider") as gp,
+            patch(
+                "llmgate.fallback._build_request",
+                return_value=MagicMock(spec=CompletionRequest),
+            ),
+        ):
             prov = MagicMock()
             prov.name = "x"
             prov.supports_prefill = False
@@ -154,14 +177,16 @@ class TestRestartModeSync:
             gp.return_value = prov
 
             with pytest.raises(AllProvidersFailedError):
-                list(_try_models_stream_sync(
-                    ["m1", "m2"],
-                    MESSAGES,
-                    fallback_on=(RateLimitError,),
-                    middleware=None,
-                    mode="restart",
-                    stream_resume_prompt=None,
-                ))
+                list(
+                    _try_models_stream_sync(
+                        ["m1", "m2"],
+                        MESSAGES,
+                        fallback_on=(RateLimitError,),
+                        middleware=None,
+                        mode="restart",
+                        stream_resume_prompt=None,
+                    )
+                )
 
     def test_non_fallback_exception_propagates(self):
         """Errors NOT in fallback_on must propagate immediately."""
@@ -171,27 +196,35 @@ class TestRestartModeSync:
             raise ValueError("not a fallback error")
             yield
 
-        with patch("llmgate.fallback._get_provider") as gp, \
-             patch("llmgate.fallback._build_request", return_value=MagicMock(spec=CompletionRequest)):
+        with (
+            patch("llmgate.fallback._get_provider") as gp,
+            patch(
+                "llmgate.fallback._build_request",
+                return_value=MagicMock(spec=CompletionRequest),
+            ),
+        ):
             prov = MagicMock()
             prov.name = "x"
             prov.stream.side_effect = lambda _: bad_stream()
             gp.return_value = prov
 
             with pytest.raises(ValueError, match="not a fallback error"):
-                list(_try_models_stream_sync(
-                    ["m1", "m2"],
-                    MESSAGES,
-                    fallback_on=(RateLimitError,),
-                    middleware=None,
-                    mode="restart",
-                    stream_resume_prompt=None,
-                ))
+                list(
+                    _try_models_stream_sync(
+                        ["m1", "m2"],
+                        MESSAGES,
+                        fallback_on=(RateLimitError,),
+                        middleware=None,
+                        mode="restart",
+                        stream_resume_prompt=None,
+                    )
+                )
 
 
 # ---------------------------------------------------------------------------
 # _try_models_stream_sync — prefill mode
 # ---------------------------------------------------------------------------
+
 
 class TestPrefillModeSync:
     def test_prefill_sent_to_fallback(self):
@@ -221,16 +254,20 @@ class TestPrefillModeSync:
                 prov.stream.return_value = _make_stream(_chunk(" is Paris.", "model-b"))
             return prov
 
-        with patch("llmgate.fallback._get_provider", side_effect=fake_get_provider), \
-             patch("llmgate.fallback._build_request", side_effect=fake_build_request):
-            chunks = list(_try_models_stream_sync(
-                ["model-a", "model-b"],
-                MESSAGES,
-                fallback_on=(RateLimitError,),
-                middleware=None,
-                mode="prefill",
-                stream_resume_prompt=None,
-            ))
+        with (
+            patch("llmgate.fallback._get_provider", side_effect=fake_get_provider),
+            patch("llmgate.fallback._build_request", side_effect=fake_build_request),
+        ):
+            chunks = list(
+                _try_models_stream_sync(
+                    ["model-a", "model-b"],
+                    MESSAGES,
+                    fallback_on=(RateLimitError,),
+                    middleware=None,
+                    mode="prefill",
+                    stream_resume_prompt=None,
+                )
+            )
 
         assert chunks[0].delta == "The capital"
         assert chunks[1].delta == " is Paris."
@@ -266,18 +303,22 @@ class TestPrefillModeSync:
                 prov.stream.return_value = _make_stream(_chunk("cont", "model-b"))
             return prov
 
-        with patch("llmgate.fallback._get_provider", side_effect=fake_get_provider), \
-             patch("llmgate.fallback._build_request", side_effect=fake_build_request), \
-             warnings.catch_warnings(record=True) as w:
+        with (
+            patch("llmgate.fallback._get_provider", side_effect=fake_get_provider),
+            patch("llmgate.fallback._build_request", side_effect=fake_build_request),
+            warnings.catch_warnings(record=True) as w,
+        ):
             warnings.simplefilter("always")
-            list(_try_models_stream_sync(
-                ["model-a", "model-b"],
-                MESSAGES,
-                fallback_on=(RateLimitError,),
-                middleware=None,
-                mode="prefill",
-                stream_resume_prompt=None,
-            ))
+            list(
+                _try_models_stream_sync(
+                    ["model-a", "model-b"],
+                    MESSAGES,
+                    fallback_on=(RateLimitError,),
+                    middleware=None,
+                    mode="prefill",
+                    stream_resume_prompt=None,
+                )
+            )
 
         # Should have warned about downgrade
         downgrade_warnings = [x for x in w if "user_turn" in str(x.message)]
@@ -294,6 +335,7 @@ class TestPrefillModeSync:
 # ---------------------------------------------------------------------------
 # _try_models_stream_sync — user_turn mode
 # ---------------------------------------------------------------------------
+
 
 class TestUserTurnModeSync:
     def test_user_turn_messages_sent(self):
@@ -319,16 +361,20 @@ class TestUserTurnModeSync:
                 prov.stream.return_value = _make_stream(_chunk(" great.", "model-b"))
             return prov
 
-        with patch("llmgate.fallback._get_provider", side_effect=fake_get_provider), \
-             patch("llmgate.fallback._build_request", side_effect=fake_build_request):
-            chunks = list(_try_models_stream_sync(
-                ["model-a", "model-b"],
-                MESSAGES,
-                fallback_on=(RateLimitError,),
-                middleware=None,
-                mode="user_turn",
-                stream_resume_prompt="Keep going.",
-            ))
+        with (
+            patch("llmgate.fallback._get_provider", side_effect=fake_get_provider),
+            patch("llmgate.fallback._build_request", side_effect=fake_build_request),
+        ):
+            chunks = list(
+                _try_models_stream_sync(
+                    ["model-a", "model-b"],
+                    MESSAGES,
+                    fallback_on=(RateLimitError,),
+                    middleware=None,
+                    mode="user_turn",
+                    stream_resume_prompt="Keep going.",
+                )
+            )
 
         b_msgs = captured["model-b"]
         assert b_msgs[-2].role == "assistant"
@@ -341,6 +387,7 @@ class TestUserTurnModeSync:
 # ---------------------------------------------------------------------------
 # 3-model chain
 # ---------------------------------------------------------------------------
+
 
 class TestThreeModelChain:
     def test_chain_of_three(self):
@@ -367,18 +414,25 @@ class TestThreeModelChain:
                 prov.stream.return_value = _make_stream(_chunk("ial done", "model-3"))
             return prov
 
-        with patch("llmgate.fallback._get_provider", side_effect=fake_get_provider), \
-             patch("llmgate.fallback._build_request", return_value=MagicMock(spec=CompletionRequest)), \
-             warnings.catch_warnings(record=True) as w:
+        with (
+            patch("llmgate.fallback._get_provider", side_effect=fake_get_provider),
+            patch(
+                "llmgate.fallback._build_request",
+                return_value=MagicMock(spec=CompletionRequest),
+            ),
+            warnings.catch_warnings(record=True) as w,
+        ):
             warnings.simplefilter("always")
-            chunks = list(_try_models_stream_sync(
-                ["model-1", "model-2", "model-3"],
-                MESSAGES,
-                fallback_on=(RateLimitError,),
-                middleware=None,
-                mode="restart",
-                stream_resume_prompt=None,
-            ))
+            chunks = list(
+                _try_models_stream_sync(
+                    ["model-1", "model-2", "model-3"],
+                    MESSAGES,
+                    fallback_on=(RateLimitError,),
+                    middleware=None,
+                    mode="restart",
+                    stream_resume_prompt=None,
+                )
+            )
 
         deltas = [c.delta for c in chunks]
         assert "Part" in deltas
@@ -389,6 +443,7 @@ class TestThreeModelChain:
 # ---------------------------------------------------------------------------
 # Async variants
 # ---------------------------------------------------------------------------
+
 
 class TestAsyncVariants:
     @pytest.mark.asyncio
@@ -414,8 +469,13 @@ class TestAsyncVariants:
                 prov.astream.return_value = ok_stream()
             return prov
 
-        with patch("llmgate.fallback._get_provider", side_effect=fake_get_provider), \
-             patch("llmgate.fallback._build_request", return_value=MagicMock(spec=CompletionRequest)):
+        with (
+            patch("llmgate.fallback._get_provider", side_effect=fake_get_provider),
+            patch(
+                "llmgate.fallback._build_request",
+                return_value=MagicMock(spec=CompletionRequest),
+            ),
+        ):
             chunks = []
             async for chunk in _try_models_stream_async(
                 ["model-a", "model-b"],
@@ -448,8 +508,13 @@ class TestAsyncVariants:
             prov.astream.return_value = dead()
             return prov
 
-        with patch("llmgate.fallback._get_provider", side_effect=fake_get_provider), \
-             patch("llmgate.fallback._build_request", return_value=MagicMock(spec=CompletionRequest)):
+        with (
+            patch("llmgate.fallback._get_provider", side_effect=fake_get_provider),
+            patch(
+                "llmgate.fallback._build_request",
+                return_value=MagicMock(spec=CompletionRequest),
+            ),
+        ):
             with pytest.raises(AllProvidersFailedError):
                 async for _ in _try_models_stream_async(
                     ["m1", "m2"],
@@ -466,6 +531,7 @@ class TestAsyncVariants:
 # Public API: completion() no longer raises ValueError for stream + list
 # ---------------------------------------------------------------------------
 
+
 class TestPublicAPI:
     def test_completion_stream_list_no_longer_raises(self):
         """completion([...], stream=True) must not raise ValueError."""
@@ -481,8 +547,13 @@ class TestPublicAPI:
             prov.stream.return_value = fake_stream()
             return prov
 
-        with patch("llmgate.fallback._get_provider", side_effect=fake_get_provider), \
-             patch("llmgate.fallback._build_request", return_value=MagicMock(spec=CompletionRequest)):
+        with (
+            patch("llmgate.fallback._get_provider", side_effect=fake_get_provider),
+            patch(
+                "llmgate.fallback._build_request",
+                return_value=MagicMock(spec=CompletionRequest),
+            ),
+        ):
             it = completion(["gpt-4o-mini", "gemini-2.0-flash"], MESSAGES, stream=True)
             chunks = list(it)
         assert len(chunks) >= 1
@@ -491,5 +562,6 @@ class TestPublicAPI:
         """Default stream_fallback_mode is 'restart'."""
         from llmgate.fallback import _try_models_stream_sync
         import inspect
+
         sig = inspect.signature(_try_models_stream_sync)
         assert sig.parameters["mode"].default == "restart"

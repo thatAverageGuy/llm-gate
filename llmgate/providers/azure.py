@@ -17,6 +17,7 @@ The deployment name after the prefix is sent directly to Azure (no further strip
 
 Or pass ``api_key``, ``azure_endpoint``, ``api_version`` kwargs directly.
 """
+
 from __future__ import annotations
 
 import json
@@ -26,8 +27,13 @@ from typing import Any, AsyncIterator, ClassVar, Iterator
 from llmgate.base import BaseProvider
 from llmgate.exceptions import AuthError, ProviderAPIError, RateLimitError
 from llmgate.types import (
-    Choice, CompletionRequest, CompletionResponse, Message,
-    StreamChunk, ToolCall, TokenUsage,
+    Choice,
+    CompletionRequest,
+    CompletionResponse,
+    Message,
+    StreamChunk,
+    ToolCall,
+    TokenUsage,
 )
 
 
@@ -48,13 +54,13 @@ class AzureOpenAIProvider(BaseProvider):
         try:
             import openai  # noqa: PLC0415
         except ImportError as e:  # pragma: no cover
-            raise ImportError(
-                "openai package is required: pip install openai"
-            ) from e
+            raise ImportError("openai package is required: pip install openai") from e
 
         resolved_key = api_key or os.environ.get("AZURE_OPENAI_API_KEY")
         endpoint = azure_endpoint or os.environ.get("AZURE_OPENAI_ENDPOINT")
-        version = api_version or os.environ.get("AZURE_OPENAI_API_VERSION", "2024-02-01")
+        version = api_version or os.environ.get(
+            "AZURE_OPENAI_API_VERSION", "2024-02-01"
+        )
 
         if not resolved_key:
             raise AuthError(
@@ -89,6 +95,7 @@ class AzureOpenAIProvider(BaseProvider):
 
     def _build_params(self, request: CompletionRequest) -> dict[str, Any]:
         from llmgate import vision  # noqa: PLC0415
+
         # Deployment name is everything after "azure/"
         deployment = self._strip_prefix(request.model)
         messages = []
@@ -124,6 +131,7 @@ class AzureOpenAIProvider(BaseProvider):
                 params["tool_choice"] = request.tool_choice
         if request.response_format is not None:
             from llmgate.structured import get_json_schema  # noqa: PLC0415
+
             schema = get_json_schema(request.response_format)
             params["response_format"] = {
                 "type": "json_schema",
@@ -144,31 +152,40 @@ class AzureOpenAIProvider(BaseProvider):
                     args = json.loads(args)
                 except json.JSONDecodeError:
                     pass
-            tool_calls.append(ToolCall(
-                id=tc.id,
-                function=tc.function.name,
-                arguments=args,
-            ))
+            tool_calls.append(
+                ToolCall(
+                    id=tc.id,
+                    function=tc.function.name,
+                    arguments=args,
+                )
+            )
         return tool_calls
 
-    def _map_response(self, raw: Any, model: str, response_format: Any = None) -> CompletionResponse:
+    def _map_response(
+        self, raw: Any, model: str, response_format: Any = None
+    ) -> CompletionResponse:
         choices = []
         for c in raw.choices:
             msg = c.message
-            tool_calls = self._parse_tool_calls(msg.tool_calls) if msg.tool_calls else []
-            choices.append(Choice(
-                index=c.index,
-                message=Message(
-                    role=msg.role,
-                    content=msg.content,
-                    tool_calls=tool_calls or None,
-                ),
-                finish_reason=c.finish_reason or "stop",
-            ))
+            tool_calls = (
+                self._parse_tool_calls(msg.tool_calls) if msg.tool_calls else []
+            )
+            choices.append(
+                Choice(
+                    index=c.index,
+                    message=Message(
+                        role=msg.role,
+                        content=msg.content,
+                        tool_calls=tool_calls or None,
+                    ),
+                    finish_reason=c.finish_reason or "stop",
+                )
+            )
         u = raw.usage
         parsed = None
         if response_format is not None and choices:
             from llmgate.structured import validate_parsed  # noqa: PLC0415
+
             parsed = validate_parsed(choices[0].message.content, response_format)
         return CompletionResponse(
             id=raw.id,
@@ -207,7 +224,9 @@ class AzureOpenAIProvider(BaseProvider):
     def stream(self, request: CompletionRequest) -> Iterator[StreamChunk]:
         params = self._build_params(request)
         try:
-            with self._client.chat.completions.create(stream=True, **params) as streamer:
+            with self._client.chat.completions.create(
+                stream=True, **params
+            ) as streamer:
                 for chunk in streamer:
                     if chunk.choices and chunk.choices[0].delta.content:
                         yield StreamChunk(delta=chunk.choices[0].delta.content)

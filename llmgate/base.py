@@ -12,6 +12,7 @@ Every provider must implement all four abstract methods:
 The ``supports(model)`` classmethod is used by the provider registry to route
 a model string to the right provider without instantiating it.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -87,5 +88,5 @@ class BaseProvider(ABC):
             # Normalise: ensure prefix ends with '/' for the startswith check
             normalised = prefix if prefix.endswith("/") else prefix + "/"
             if model.lower().startswith(normalised):
-                return model[len(normalised):]
+                return model[len(normalised) :]
         return model

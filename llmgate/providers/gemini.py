@@ -13,6 +13,7 @@ Tool Calling:
   - Model responses with function calls are in candidate content parts.
   - Tool results are sent back as ``function_response`` parts in a user turn.
 """
+
 from __future__ import annotations
 
 import os
@@ -22,7 +23,13 @@ from typing import Any, AsyncIterator, ClassVar, Iterator
 from llmgate.base import BaseProvider
 from llmgate.exceptions import AuthError, ProviderAPIError, RateLimitError
 from llmgate.types import (
-    Choice, CompletionRequest, CompletionResponse, Message, StreamChunk, ToolCall, TokenUsage,
+    Choice,
+    CompletionRequest,
+    CompletionResponse,
+    Message,
+    StreamChunk,
+    ToolCall,
+    TokenUsage,
 )
 
 
@@ -39,7 +46,11 @@ class GeminiProvider(BaseProvider):
                 "google-genai package is required: uv add google-genai"
             ) from e
 
-        resolved_key = api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        resolved_key = (
+            api_key
+            or os.environ.get("GEMINI_API_KEY")
+            or os.environ.get("GOOGLE_API_KEY")
+        )
         if not resolved_key:
             raise AuthError(
                 "Gemini API key not found. Set GEMINI_API_KEY (or GOOGLE_API_KEY) env var "
@@ -54,7 +65,9 @@ class GeminiProvider(BaseProvider):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _to_genai_contents(messages: list[Message]) -> tuple[str | None, list[dict[str, Any]]]:
+    def _to_genai_contents(
+        messages: list[Message],
+    ) -> tuple[str | None, list[dict[str, Any]]]:
         """
         Convert llmgate messages to google-genai ``contents`` format.
 
@@ -72,12 +85,16 @@ class GeminiProvider(BaseProvider):
 
         for msg in messages:
             if msg.role == "system":
-                system_instruction = msg.content if isinstance(msg.content, str) else None
+                system_instruction = (
+                    msg.content if isinstance(msg.content, str) else None
+                )
                 continue
 
             if msg.role == "user":
                 if isinstance(msg.content, str) or msg.content is None:
-                    contents.append({"role": "user", "parts": [{"text": msg.content or ""}]})
+                    contents.append(
+                        {"role": "user", "parts": [{"text": msg.content or ""}]}
+                    )
                 else:
                     # Multipart (vision) — use Part objects
                     parts = vision.to_gemini_parts(msg.content)
@@ -93,12 +110,14 @@ class GeminiProvider(BaseProvider):
                         parts.extend(vision.to_gemini_parts(msg.content))
                 if msg.tool_calls:
                     for tc in msg.tool_calls:
-                        parts.append({
-                            "function_call": {
-                                "name": tc.function,
-                                "args": tc.arguments,
+                        parts.append(
+                            {
+                                "function_call": {
+                                    "name": tc.function,
+                                    "args": tc.arguments,
+                                }
                             }
-                        })
+                        )
                 contents.append({"role": "model", "parts": parts})
                 continue
 
@@ -106,20 +125,25 @@ class GeminiProvider(BaseProvider):
                 # Tool result — sent as a user turn with function_response part
                 try:
                     import json as _json  # noqa: PLC0415
+
                     result_data = _json.loads(msg.content or "{}")
                     if not isinstance(result_data, dict):
                         result_data = {"result": result_data}
                 except Exception:  # noqa: BLE001
                     result_data = {"result": msg.content or ""}
-                contents.append({
-                    "role": "user",
-                    "parts": [{
-                        "function_response": {
-                            "name": msg.name or "",
-                            "response": result_data,
-                        }
-                    }],
-                })
+                contents.append(
+                    {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "function_response": {
+                                    "name": msg.name or "",
+                                    "response": result_data,
+                                }
+                            }
+                        ],
+                    }
+                )
 
         return system_instruction, contents
 
@@ -132,24 +156,29 @@ class GeminiProvider(BaseProvider):
         if request.top_p is not None:
             config["top_p"] = request.top_p
         if request.tools:
-            config["tools"] = [{
-                "function_declarations": [
-                    {
-                        "name": t.function.name,
-                        "description": t.function.description,
-                        "parameters": t.function.parameters,
-                    }
-                    for t in request.tools
-                ]
-            }]
+            config["tools"] = [
+                {
+                    "function_declarations": [
+                        {
+                            "name": t.function.name,
+                            "description": t.function.description,
+                            "parameters": t.function.parameters,
+                        }
+                        for t in request.tools
+                    ]
+                }
+            ]
         if request.response_format is not None:
             from llmgate.structured import get_json_schema  # noqa: PLC0415
+
             config["response_mime_type"] = "application/json"
             config["response_schema"] = get_json_schema(request.response_format)
         config.update(request.extra_kwargs)
         return config
 
-    def _map_response(self, raw: Any, model: str, response_format: Any = None) -> CompletionResponse:
+    def _map_response(
+        self, raw: Any, model: str, response_format: Any = None
+    ) -> CompletionResponse:
         text = raw.text if hasattr(raw, "text") and raw.text else None
         usage_meta = getattr(raw, "usage_metadata", None)
         usage = TokenUsage(
@@ -166,15 +195,18 @@ class GeminiProvider(BaseProvider):
             for part in getattr(cand.content, "parts", []):
                 fc = getattr(part, "function_call", None)
                 if fc is not None:
-                    tool_calls.append(ToolCall(
-                        id=str(uuid.uuid4()),
-                        function=fc.name,
-                        arguments=dict(fc.args) if fc.args else {},
-                    ))
+                    tool_calls.append(
+                        ToolCall(
+                            id=str(uuid.uuid4()),
+                            function=fc.name,
+                            arguments=dict(fc.args) if fc.args else {},
+                        )
+                    )
 
         parsed = None
         if response_format is not None and text:
             from llmgate.structured import validate_parsed  # noqa: PLC0415
+
             parsed = validate_parsed(text, response_format)
 
         return CompletionResponse(
@@ -206,7 +238,9 @@ class GeminiProvider(BaseProvider):
             raise RateLimitError(msg, provider=self.name) from exc
         raise ProviderAPIError(msg, provider=self.name) from exc
 
-    def _make_full_config(self, request: CompletionRequest, system_instruction: str | None) -> dict[str, Any]:
+    def _make_full_config(
+        self, request: CompletionRequest, system_instruction: str | None
+    ) -> dict[str, Any]:
         config = self._build_config(request)
         if system_instruction:
             config["system_instruction"] = system_instruction

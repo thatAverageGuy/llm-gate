@@ -10,6 +10,7 @@ Tests three real scenarios using actual provider API keys from .env:
 4. LLMGate fallback_chain — live test of the gate-level API
 5. Custom fallback_on — verifying AuthError triggers fallback (Option B)
 """
+
 from __future__ import annotations
 
 import os
@@ -29,15 +30,15 @@ from llmgate.exceptions import AllProvidersFailedError, AuthError, RateLimitErro
 
 MESSAGES = [{"role": "user", "content": "Reply with exactly: fallback works"}]
 
-GROQ_KEY    = os.environ["GROQ_API_KEY"]
-GEMINI_KEY  = os.environ["GOOGLE_API_KEY"]
+GROQ_KEY = os.environ["GROQ_API_KEY"]
+GEMINI_KEY = os.environ["GOOGLE_API_KEY"]
 ANTHROPIC_KEY = os.environ["ANTHROPIC_API_KEY"]
 
 
 def section(title: str) -> None:
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  {title}")
-    print('='*60)
+    print("=" * 60)
 
 
 # ---------------------------------------------------------------------------
@@ -48,7 +49,9 @@ resp = completion(
     model=["groq/llama-3.1-8b-instant", "gemini-2.0-flash", "claude-haiku-4-5"],
     messages=MESSAGES,
 )
-assert resp.fallback_attempts == [], f"Expected no fallback, got: {resp.fallback_attempts}"
+assert resp.fallback_attempts == [], (
+    f"Expected no fallback, got: {resp.fallback_attempts}"
+)
 print(f"  ✅ Provider used     : {resp.provider}")
 print(f"  ✅ Model used        : {resp.model}")
 print(f"  ✅ fallback_attempts : {resp.fallback_attempts}")
@@ -71,7 +74,9 @@ resp = completion(
 # (which does NOT trigger fallback — it propagates). Instead let's use AuthError path.
 # Cleanest live test: give provider a bad key via environment manipulation.
 print("  [skipping per-provider key override — not in current API surface]")
-print("  Testing via wrong model name → ModelNotFoundError propagates (not a fallback trigger)")
+print(
+    "  Testing via wrong model name → ModelNotFoundError propagates (not a fallback trigger)"
+)
 try:
     resp2 = completion(
         model=["completely-invalid-xyz-model", "groq/llama-3.1-8b-instant"],
@@ -122,7 +127,11 @@ except Exception as e:
 # ---------------------------------------------------------------------------
 section("TEST 5: LLMGate(fallback_chain=[...])")
 gate = LLMGate(
-    fallback_chain=["groq/llama-3.1-8b-instant", "gemini-2.0-flash", "claude-haiku-4-5"],
+    fallback_chain=[
+        "groq/llama-3.1-8b-instant",
+        "gemini-2.0-flash",
+        "claude-haiku-4-5",
+    ],
 )
 resp5 = gate.completion(messages=MESSAGES)
 print(f"  ✅ Provider used     : {resp5.provider}")
@@ -149,6 +158,6 @@ print(f"  ✅ Response text     : {resp6.text!r}")
 # ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
-print("\n" + "="*60)
+print("\n" + "=" * 60)
 print("  ALL LIVE SMOKE TESTS COMPLETED")
-print("="*60)
+print("=" * 60)

@@ -17,6 +17,7 @@ Supported providers and their expected formats:
 * **Bedrock** — Converse API ``image`` content blocks (raw bytes)
 * **Ollama** — ``message["images"]`` list of raw base64 strings
 """
+
 from __future__ import annotations
 
 import base64
@@ -168,30 +169,36 @@ def to_anthropic_content(
                 url = part.image_url.url
                 if _is_data_uri(url):
                     raw, mime = _data_uri_to_bytes(url)
-                    blocks.append({
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": mime,
-                            "data": base64.b64encode(raw).decode(),
-                        },
-                    })
+                    blocks.append(
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": mime,
+                                "data": base64.b64encode(raw).decode(),
+                            },
+                        }
+                    )
                 else:
-                    blocks.append({
-                        "type": "image",
-                        "source": {"type": "url", "url": url},
-                    })
+                    blocks.append(
+                        {
+                            "type": "image",
+                            "source": {"type": "url", "url": url},
+                        }
+                    )
             else:  # image_bytes
                 assert part.image_bytes is not None
                 ib = part.image_bytes
-                blocks.append({
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": ib.mime_type,
-                        "data": ib.data,
-                    },
-                })
+                blocks.append(
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": ib.mime_type,
+                            "data": ib.data,
+                        },
+                    }
+                )
         else:
             blocks.append(dict(part))  # type: ignore[arg-type]
     return blocks
@@ -236,7 +243,9 @@ def to_gemini_parts(content: ContentType) -> list[Any]:
                 assert part.image_bytes is not None
                 ib = part.image_bytes
                 raw = base64.b64decode(ib.data)
-                parts.append(genai_types.Part.from_bytes(data=raw, mime_type=ib.mime_type))
+                parts.append(
+                    genai_types.Part.from_bytes(data=raw, mime_type=ib.mime_type)
+                )
         else:
             parts.append(part)
     return parts
@@ -279,23 +288,27 @@ def to_bedrock_content(content: ContentType) -> list[dict[str, Any]]:
                 else:
                     raw, mime = _fetch_url_bytes(url)
                 fmt = _MIME_TO_BEDROCK_FORMAT.get(mime, "jpeg")
-                blocks.append({
-                    "image": {
-                        "format": fmt,
-                        "source": {"bytes": raw},
+                blocks.append(
+                    {
+                        "image": {
+                            "format": fmt,
+                            "source": {"bytes": raw},
+                        }
                     }
-                })
+                )
             else:  # image_bytes
                 assert part.image_bytes is not None
                 ib = part.image_bytes
                 raw = base64.b64decode(ib.data)
                 fmt = _MIME_TO_BEDROCK_FORMAT.get(ib.mime_type, "jpeg")
-                blocks.append({
-                    "image": {
-                        "format": fmt,
-                        "source": {"bytes": raw},
+                blocks.append(
+                    {
+                        "image": {
+                            "format": fmt,
+                            "source": {"bytes": raw},
+                        }
                     }
-                })
+                )
         else:
             blocks.append(dict(part))  # type: ignore[arg-type]
     return blocks

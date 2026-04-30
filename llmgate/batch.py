@@ -18,6 +18,7 @@ Concurrency strategy:
   the ``asyncio.run()``-in-running-loop pitfall that would occur if ``batch``
   simply wrapped ``abatch``.
 """
+
 from __future__ import annotations
 
 import asyncio

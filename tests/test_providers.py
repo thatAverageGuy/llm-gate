@@ -1,4 +1,5 @@
 """Tests for individual provider request/response mapping (all mocked)."""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -7,7 +8,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from llmgate.types import (
-    CompletionRequest, FunctionDefinition, Message, ToolCall, ToolDefinition,
+    CompletionRequest,
+    FunctionDefinition,
+    Message,
+    ToolCall,
+    ToolDefinition,
 )
 
 
@@ -18,15 +23,17 @@ def _make_request(model: str, messages=None, **kwargs) -> CompletionRequest:
 
 
 def _weather_tool() -> ToolDefinition:
-    return ToolDefinition(function=FunctionDefinition(
-        name="get_weather",
-        description="Get current weather for a city",
-        parameters={
-            "type": "object",
-            "properties": {"city": {"type": "string"}},
-            "required": ["city"],
-        },
-    ))
+    return ToolDefinition(
+        function=FunctionDefinition(
+            name="get_weather",
+            description="Get current weather for a city",
+            parameters={
+                "type": "object",
+                "properties": {"city": {"type": "string"}},
+                "required": ["city"],
+            },
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -39,16 +46,17 @@ class TestOpenAIProvider:
         msg = SimpleNamespace(role="assistant", content="Hi!", tool_calls=tool_calls)
         raw = SimpleNamespace(
             id="chatcmpl-xyz",
-            choices=[
-                SimpleNamespace(index=0, message=msg, finish_reason="stop")
-            ],
+            choices=[SimpleNamespace(index=0, message=msg, finish_reason="stop")],
             usage=SimpleNamespace(prompt_tokens=5, completion_tokens=2, total_tokens=7),
         )
         return raw
 
     def test_complete_maps_response(self):
-        with patch("llmgate.providers.openai.OpenAIProvider.__init__", return_value=None):
+        with patch(
+            "llmgate.providers.openai.OpenAIProvider.__init__", return_value=None
+        ):
             from llmgate.providers.openai import OpenAIProvider
+
             provider = OpenAIProvider.__new__(OpenAIProvider)
             provider._openai = MagicMock()
             provider._client = MagicMock()
@@ -64,8 +72,11 @@ class TestOpenAIProvider:
 
     @pytest.mark.asyncio
     async def test_acomplete_maps_response(self):
-        with patch("llmgate.providers.openai.OpenAIProvider.__init__", return_value=None):
+        with patch(
+            "llmgate.providers.openai.OpenAIProvider.__init__", return_value=None
+        ):
             from llmgate.providers.openai import OpenAIProvider
+
             provider = OpenAIProvider.__new__(OpenAIProvider)
             provider._openai = MagicMock()
             provider._async_client = MagicMock()
@@ -78,8 +89,11 @@ class TestOpenAIProvider:
             assert resp.text == "Hi!"
 
     def test_tools_serialised_to_openai_format(self):
-        with patch("llmgate.providers.openai.OpenAIProvider.__init__", return_value=None):
+        with patch(
+            "llmgate.providers.openai.OpenAIProvider.__init__", return_value=None
+        ):
             from llmgate.providers.openai import OpenAIProvider
+
             provider = OpenAIProvider.__new__(OpenAIProvider)
             req = _make_request("gpt-4o-mini", tools=[_weather_tool()])
             params = provider._build_params(req)
@@ -89,12 +103,17 @@ class TestOpenAIProvider:
             assert "parameters" in params["tools"][0]["function"]
 
     def test_tool_call_response_mapped(self):
-        with patch("llmgate.providers.openai.OpenAIProvider.__init__", return_value=None):
+        with patch(
+            "llmgate.providers.openai.OpenAIProvider.__init__", return_value=None
+        ):
             from llmgate.providers.openai import OpenAIProvider
+
             provider = OpenAIProvider.__new__(OpenAIProvider)
             raw_tc = SimpleNamespace(
                 id="call_abc",
-                function=SimpleNamespace(name="get_weather", arguments='{"city": "London"}'),
+                function=SimpleNamespace(
+                    name="get_weather", arguments='{"city": "London"}'
+                ),
             )
             raw = self._make_raw(tool_calls=[raw_tc])
             raw.choices[0].finish_reason = "tool_calls"
@@ -125,8 +144,11 @@ class TestAnthropicProvider:
 
     def test_complete_system_extraction(self):
         """System messages should be extracted from the messages list."""
-        with patch("llmgate.providers.anthropic.AnthropicProvider.__init__", return_value=None):
+        with patch(
+            "llmgate.providers.anthropic.AnthropicProvider.__init__", return_value=None
+        ):
             from llmgate.providers.anthropic import AnthropicProvider
+
             provider = AnthropicProvider.__new__(AnthropicProvider)
             provider._anthropic = MagicMock()
             provider._client = MagicMock()
@@ -146,16 +168,22 @@ class TestAnthropicProvider:
             assert not any(m.get("role") == "system" for m in params["messages"])
 
     def test_max_tokens_defaults_to_1024(self):
-        with patch("llmgate.providers.anthropic.AnthropicProvider.__init__", return_value=None):
+        with patch(
+            "llmgate.providers.anthropic.AnthropicProvider.__init__", return_value=None
+        ):
             from llmgate.providers.anthropic import AnthropicProvider
+
             provider = AnthropicProvider.__new__(AnthropicProvider)
             req = _make_request("claude-3-5-sonnet-20241022")
             params = provider._build_params(req)
             assert params["max_tokens"] == 1024
 
     def test_complete_maps_response(self):
-        with patch("llmgate.providers.anthropic.AnthropicProvider.__init__", return_value=None):
+        with patch(
+            "llmgate.providers.anthropic.AnthropicProvider.__init__", return_value=None
+        ):
             from llmgate.providers.anthropic import AnthropicProvider
+
             provider = AnthropicProvider.__new__(AnthropicProvider)
             provider._anthropic = MagicMock()
             provider._client = MagicMock()
@@ -167,8 +195,11 @@ class TestAnthropicProvider:
             assert resp.usage.prompt_tokens == 10
 
     def test_tools_serialised_to_anthropic_format(self):
-        with patch("llmgate.providers.anthropic.AnthropicProvider.__init__", return_value=None):
+        with patch(
+            "llmgate.providers.anthropic.AnthropicProvider.__init__", return_value=None
+        ):
             from llmgate.providers.anthropic import AnthropicProvider
+
             provider = AnthropicProvider.__new__(AnthropicProvider)
             req = _make_request("claude-3-5-sonnet-20241022", tools=[_weather_tool()])
             params = provider._build_params(req)
@@ -179,12 +210,17 @@ class TestAnthropicProvider:
             assert "parameters" not in params["tools"][0]
 
     def test_tool_call_response_mapped(self):
-        with patch("llmgate.providers.anthropic.AnthropicProvider.__init__", return_value=None):
+        with patch(
+            "llmgate.providers.anthropic.AnthropicProvider.__init__", return_value=None
+        ):
             from llmgate.providers.anthropic import AnthropicProvider
+
             provider = AnthropicProvider.__new__(AnthropicProvider)
             # Anthropic returns tool_use content blocks
             tool_block = SimpleNamespace(
-                type="tool_use", id="toolu_123", name="get_weather",
+                type="tool_use",
+                id="toolu_123",
+                name="get_weather",
                 input={"city": "London"},
             )
             raw = self._make_raw(content=[tool_block])
@@ -195,15 +231,28 @@ class TestAnthropicProvider:
             assert resp.tool_calls[0].arguments == {"city": "London"}
 
     def test_tool_result_message_format(self):
-        with patch("llmgate.providers.anthropic.AnthropicProvider.__init__", return_value=None):
+        with patch(
+            "llmgate.providers.anthropic.AnthropicProvider.__init__", return_value=None
+        ):
             from llmgate.providers.anthropic import AnthropicProvider
+
             AnthropicProvider.__new__(AnthropicProvider)
             msgs = [
                 Message(role="user", content="What's the weather?"),
-                Message(role="assistant", content=None, tool_calls=[
-                    ToolCall(id="toolu_123", function="get_weather", arguments={"city": "London"})
-                ]),
-                Message(role="tool", tool_call_id="toolu_123", content='{"temp": "12°C"}'),
+                Message(
+                    role="assistant",
+                    content=None,
+                    tool_calls=[
+                        ToolCall(
+                            id="toolu_123",
+                            function="get_weather",
+                            arguments={"city": "London"},
+                        )
+                    ],
+                ),
+                Message(
+                    role="tool", tool_call_id="toolu_123", content='{"temp": "12°C"}'
+                ),
             ]
             _, built = AnthropicProvider._build_messages(msgs)
             # tool result should be a user message with tool_result block
@@ -221,6 +270,7 @@ class TestGroqProvider:
     def test_prefix_stripped(self):
         with patch("llmgate.providers.groq.GroqProvider.__init__", return_value=None):
             from llmgate.providers.groq import GroqProvider
+
             provider = GroqProvider.__new__(GroqProvider)
             req = _make_request("groq/llama-3.1-8b-instant")
             params = provider._build_params(req)
@@ -229,6 +279,7 @@ class TestGroqProvider:
     def test_no_prefix_passes_through(self):
         with patch("llmgate.providers.groq.GroqProvider.__init__", return_value=None):
             from llmgate.providers.groq import GroqProvider
+
             provider = GroqProvider.__new__(GroqProvider)
             req = _make_request("groq/gemma2-9b-it")
             params = provider._build_params(req)
@@ -237,6 +288,7 @@ class TestGroqProvider:
     def test_tools_serialised_to_openai_format(self):
         with patch("llmgate.providers.groq.GroqProvider.__init__", return_value=None):
             from llmgate.providers.groq import GroqProvider
+
             provider = GroqProvider.__new__(GroqProvider)
             req = _make_request("groq/llama-3.1-8b-instant", tools=[_weather_tool()])
             params = provider._build_params(req)
@@ -252,37 +304,58 @@ class TestGroqProvider:
 
 class TestGeminiProvider:
     def test_message_conversion(self):
-        with patch("llmgate.providers.gemini.GeminiProvider.__init__", return_value=None):
+        with patch(
+            "llmgate.providers.gemini.GeminiProvider.__init__", return_value=None
+        ):
             from llmgate.providers.gemini import GeminiProvider
-            sys_instr, contents = GeminiProvider._to_genai_contents([
-                Message(role="system", content="Be concise."),
-                Message(role="user", content="Hello"),
-                Message(role="assistant", content="Hi there"),
-                Message(role="user", content="How are you?"),
-            ])
+
+            sys_instr, contents = GeminiProvider._to_genai_contents(
+                [
+                    Message(role="system", content="Be concise."),
+                    Message(role="user", content="Hello"),
+                    Message(role="assistant", content="Hi there"),
+                    Message(role="user", content="How are you?"),
+                ]
+            )
             assert sys_instr == "Be concise."
             assert contents[0]["role"] == "user"
             assert contents[1]["role"] == "model"  # assistant -> model
             assert contents[2]["role"] == "user"
 
     def test_tools_serialised_to_gemini_format(self):
-        with patch("llmgate.providers.gemini.GeminiProvider.__init__", return_value=None):
+        with patch(
+            "llmgate.providers.gemini.GeminiProvider.__init__", return_value=None
+        ):
             from llmgate.providers.gemini import GeminiProvider
+
             provider = GeminiProvider.__new__(GeminiProvider)
             req = _make_request("gemini-2.5-flash-lite", tools=[_weather_tool()])
             config = provider._build_config(req)
             assert "tools" in config
             assert "function_declarations" in config["tools"][0]
-            assert config["tools"][0]["function_declarations"][0]["name"] == "get_weather"
+            assert (
+                config["tools"][0]["function_declarations"][0]["name"] == "get_weather"
+            )
 
     def test_tool_result_message_format(self):
-        with patch("llmgate.providers.gemini.GeminiProvider.__init__", return_value=None):
+        with patch(
+            "llmgate.providers.gemini.GeminiProvider.__init__", return_value=None
+        ):
             from llmgate.providers.gemini import GeminiProvider
+
             msgs = [
                 Message(role="user", content="What's the weather?"),
-                Message(role="assistant", content=None, tool_calls=[
-                    ToolCall(id="call-1", function="get_weather", arguments={"city": "London"})
-                ]),
+                Message(
+                    role="assistant",
+                    content=None,
+                    tool_calls=[
+                        ToolCall(
+                            id="call-1",
+                            function="get_weather",
+                            arguments={"city": "London"},
+                        )
+                    ],
+                ),
                 Message(role="tool", name="get_weather", content='{"temp": "12°C"}'),
             ]
             _, contents = GeminiProvider._to_genai_contents(msgs)
@@ -291,5 +364,3 @@ class TestGeminiProvider:
             assert last["role"] == "user"
             assert "function_response" in last["parts"][0]
             assert last["parts"][0]["function_response"]["name"] == "get_weather"
-
-

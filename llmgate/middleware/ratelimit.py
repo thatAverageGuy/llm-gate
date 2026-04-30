@@ -17,6 +17,7 @@ Usage::
     # Allow at most 20 requests per minute
     gate = LLMGate(middleware=[RateLimitMiddleware(requests_per_minute=20)])
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -47,7 +48,7 @@ class RateLimitMiddleware(BaseMiddleware):
         burst: int | None = None,
         raise_on_limit: bool = True,
     ) -> None:
-        self._rate = requests_per_minute / 60.0      # tokens per second
+        self._rate = requests_per_minute / 60.0  # tokens per second
         self._capacity = float(burst or requests_per_minute)
         self._tokens = self._capacity
         self._last_refill = time.monotonic()

@@ -1,4 +1,5 @@
 """Tests for llmgate type models."""
+
 from __future__ import annotations
 
 import pytest
@@ -80,9 +81,7 @@ class TestCompletionResponse:
         assert resp.text == "Hello there!"
 
     def test_text_empty_choices(self):
-        resp = CompletionResponse(
-            id="x", model="gpt-4o", provider="openai", choices=[]
-        )
+        resp = CompletionResponse(id="x", model="gpt-4o", provider="openai", choices=[])
         assert resp.text == ""
 
     def test_raw_excluded_from_serialisation(self):

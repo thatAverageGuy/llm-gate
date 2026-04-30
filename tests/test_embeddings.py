@@ -1,6 +1,7 @@
 """
 Tests for the Embeddings API — all provider SDK calls are mocked.
 """
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -19,6 +20,7 @@ FAKE_VECTOR2 = [0.4, 0.5, 0.6]
 # ---------------------------------------------------------------------------
 # Routing
 # ---------------------------------------------------------------------------
+
 
 class TestRoute:
     def test_openai_default(self):
@@ -60,35 +62,44 @@ class TestRoute:
 # EmbeddingRequest — new fields
 # ---------------------------------------------------------------------------
 
+
 class TestEmbeddingRequestFields:
     def test_task_type_field(self):
-        req = EmbeddingRequest(model="gemini/text-embedding-004", input="hi",
-                               task_type="RETRIEVAL_DOCUMENT")
+        req = EmbeddingRequest(
+            model="gemini/text-embedding-004",
+            input="hi",
+            task_type="RETRIEVAL_DOCUMENT",
+        )
         assert req.task_type == "RETRIEVAL_DOCUMENT"
 
     def test_title_field(self):
-        req = EmbeddingRequest(model="gemini/text-embedding-004", input="hi",
-                               title="My Doc")
+        req = EmbeddingRequest(
+            model="gemini/text-embedding-004", input="hi", title="My Doc"
+        )
         assert req.title == "My Doc"
 
     def test_input_type_field(self):
-        req = EmbeddingRequest(model="cohere/embed-english-v3.0", input="hi",
-                               input_type="search_query")
+        req = EmbeddingRequest(
+            model="cohere/embed-english-v3.0", input="hi", input_type="search_query"
+        )
         assert req.input_type == "search_query"
 
     def test_truncate_field(self):
-        req = EmbeddingRequest(model="cohere/embed-english-v3.0", input="hi",
-                               truncate="END")
+        req = EmbeddingRequest(
+            model="cohere/embed-english-v3.0", input="hi", truncate="END"
+        )
         assert req.truncate == "END"
 
     def test_encoding_format_field(self):
-        req = EmbeddingRequest(model="text-embedding-3-small", input="hi",
-                               encoding_format="base64")
+        req = EmbeddingRequest(
+            model="text-embedding-3-small", input="hi", encoding_format="base64"
+        )
         assert req.encoding_format == "base64"
 
     def test_user_field(self):
-        req = EmbeddingRequest(model="text-embedding-3-small", input="hi",
-                               user="user-123")
+        req = EmbeddingRequest(
+            model="text-embedding-3-small", input="hi", user="user-123"
+        )
         assert req.user == "user-123"
 
     def test_defaults_are_none(self):
@@ -105,6 +116,7 @@ class TestEmbeddingRequestFields:
 # OpenAI — batching + new params
 # ---------------------------------------------------------------------------
 
+
 class TestOpenAIEmbeddings:
     def _make_raw(self, n=1):
         items = [SimpleNamespace(index=i, embedding=FAKE_VECTOR) for i in range(n)]
@@ -119,7 +131,8 @@ class TestOpenAIEmbeddings:
     def test_single_input(self):
         with patch("llmgate.embeddings._embed_openai") as mock_fn:
             mock_fn.return_value = EmbeddingResponse(
-                model="text-embedding-3-small", provider="openai",
+                model="text-embedding-3-small",
+                provider="openai",
                 embeddings=[FAKE_VECTOR],
             )
             resp = embed("text-embedding-3-small", "hello")
@@ -153,7 +166,8 @@ class TestOpenAIEmbeddings:
     def test_dimensions_forwarded(self):
         with patch("llmgate.embeddings._embed_openai") as mock_fn:
             mock_fn.return_value = EmbeddingResponse(
-                model="text-embedding-3-small", provider="openai",
+                model="text-embedding-3-small",
+                provider="openai",
                 embeddings=[FAKE_VECTOR],
             )
             embed("text-embedding-3-small", "hi", dimensions=256)
@@ -162,7 +176,8 @@ class TestOpenAIEmbeddings:
     def test_batch_returns_multiple_vectors(self):
         with patch("llmgate.embeddings._embed_openai") as mock_fn:
             mock_fn.return_value = EmbeddingResponse(
-                model="text-embedding-3-small", provider="openai",
+                model="text-embedding-3-small",
+                provider="openai",
                 embeddings=[FAKE_VECTOR, FAKE_VECTOR2],
             )
             resp = embed("text-embedding-3-small", ["hello", "world"])
@@ -172,6 +187,7 @@ class TestOpenAIEmbeddings:
 # ---------------------------------------------------------------------------
 # Gemini — true batch + task_type + title
 # ---------------------------------------------------------------------------
+
 
 class TestGeminiEmbeddings:
     def _make_gemini_response(self, n=1):
@@ -194,8 +210,7 @@ class TestGeminiEmbeddings:
         mock_client = MagicMock()
         mock_client.models.embed_content.return_value = self._make_gemini_response()
         with patch("google.genai.Client", return_value=mock_client):
-            embed("gemini/text-embedding-004", "hi",
-                  task_type="RETRIEVAL_DOCUMENT")
+            embed("gemini/text-embedding-004", "hi", task_type="RETRIEVAL_DOCUMENT")
         call_kwargs = mock_client.models.embed_content.call_args.kwargs
         assert call_kwargs["config"].task_type == "RETRIEVAL_DOCUMENT"
 
@@ -203,8 +218,7 @@ class TestGeminiEmbeddings:
         mock_client = MagicMock()
         mock_client.models.embed_content.return_value = self._make_gemini_response()
         with patch("google.genai.Client", return_value=mock_client):
-            embed("gemini/text-embedding-004", "query?",
-                  task_type="RETRIEVAL_QUERY")
+            embed("gemini/text-embedding-004", "query?", task_type="RETRIEVAL_QUERY")
         call_kwargs = mock_client.models.embed_content.call_args.kwargs
         assert call_kwargs["config"].task_type == "RETRIEVAL_QUERY"
 
@@ -212,8 +226,12 @@ class TestGeminiEmbeddings:
         mock_client = MagicMock()
         mock_client.models.embed_content.return_value = self._make_gemini_response()
         with patch("google.genai.Client", return_value=mock_client):
-            embed("gemini/text-embedding-004", "hi",
-                  task_type="RETRIEVAL_DOCUMENT", title="My Doc")
+            embed(
+                "gemini/text-embedding-004",
+                "hi",
+                task_type="RETRIEVAL_DOCUMENT",
+                title="My Doc",
+            )
         call_kwargs = mock_client.models.embed_content.call_args.kwargs
         assert call_kwargs["config"].title == "My Doc"
 
@@ -245,6 +263,7 @@ class TestGeminiEmbeddings:
 # ---------------------------------------------------------------------------
 # Cohere — input_type, truncate, no mutation
 # ---------------------------------------------------------------------------
+
 
 class TestCohereEmbeddings:
     def _mock_response(self, n=1):
@@ -283,10 +302,13 @@ class TestCohereEmbeddings:
         assert req.truncate is None
 
     def test_batch_single_call(self):
-        mock_fn = MagicMock(return_value=EmbeddingResponse(
-            model="cohere/embed-english-v3.0", provider="cohere",
-            embeddings=[FAKE_VECTOR, FAKE_VECTOR2],
-        ))
+        mock_fn = MagicMock(
+            return_value=EmbeddingResponse(
+                model="cohere/embed-english-v3.0",
+                provider="cohere",
+                embeddings=[FAKE_VECTOR, FAKE_VECTOR2],
+            )
+        )
         with patch("llmgate.embeddings._embed_cohere", mock_fn):
             resp = embed("cohere/embed-english-v3.0", ["a", "b"])
         mock_fn.assert_called_once()
@@ -303,6 +325,7 @@ class TestCohereEmbeddings:
             extra_kwargs=dict(original_extra),  # copy
         )
         from llmgate.embeddings import _embed_cohere
+
         # Patch cohere.ClientV2 at the embeddings module level
         mock_cohere = MagicMock()
         mock_client = MagicMock()
@@ -319,35 +342,47 @@ class TestCohereEmbeddings:
 # Mistral — output_dimension, encoding_format
 # ---------------------------------------------------------------------------
 
+
 class TestMistralEmbeddings:
     def _make_mistral_response(self, n=1):
         items = [SimpleNamespace(index=i, embedding=FAKE_VECTOR) for i in range(n)]
-        usage = SimpleNamespace(prompt_tokens=3*n, total_tokens=3*n)
+        usage = SimpleNamespace(prompt_tokens=3 * n, total_tokens=3 * n)
         return SimpleNamespace(data=items, usage=usage)
 
     def test_output_dimension_forwarded(self):
-        mock_fn = MagicMock(return_value=EmbeddingResponse(
-            model="mistral/mistral-embed", provider="mistral", embeddings=[FAKE_VECTOR],
-        ))
+        mock_fn = MagicMock(
+            return_value=EmbeddingResponse(
+                model="mistral/mistral-embed",
+                provider="mistral",
+                embeddings=[FAKE_VECTOR],
+            )
+        )
         with patch("llmgate.embeddings._embed_mistral", mock_fn):
             embed("mistral/mistral-embed", "hi", dimensions=512)
         req = mock_fn.call_args[0][0]
         assert req.dimensions == 512
 
     def test_encoding_format_forwarded(self):
-        mock_fn = MagicMock(return_value=EmbeddingResponse(
-            model="mistral/mistral-embed", provider="mistral", embeddings=[FAKE_VECTOR],
-        ))
+        mock_fn = MagicMock(
+            return_value=EmbeddingResponse(
+                model="mistral/mistral-embed",
+                provider="mistral",
+                embeddings=[FAKE_VECTOR],
+            )
+        )
         with patch("llmgate.embeddings._embed_mistral", mock_fn):
             embed("mistral/mistral-embed", "hi", encoding_format="base64")
         req = mock_fn.call_args[0][0]
         assert req.encoding_format == "base64"
 
     def test_batch_single_call(self):
-        mock_fn = MagicMock(return_value=EmbeddingResponse(
-            model="mistral/mistral-embed", provider="mistral",
-            embeddings=[FAKE_VECTOR, FAKE_VECTOR2],
-        ))
+        mock_fn = MagicMock(
+            return_value=EmbeddingResponse(
+                model="mistral/mistral-embed",
+                provider="mistral",
+                embeddings=[FAKE_VECTOR, FAKE_VECTOR2],
+            )
+        )
         with patch("llmgate.embeddings._embed_mistral", mock_fn):
             resp = embed("mistral/mistral-embed", ["a", "b"])
         mock_fn.assert_called_once()
@@ -360,16 +395,20 @@ class TestMistralEmbeddings:
 # Ollama — true batch (single call)
 # ---------------------------------------------------------------------------
 
+
 class TestOllamaEmbeddings:
     def _make_ollama_response(self, n=1):
         vecs = [FAKE_VECTOR] * n
         return SimpleNamespace(embeddings=vecs)
 
     def test_batch_single_call(self):
-        mock_fn = MagicMock(return_value=EmbeddingResponse(
-            model="ollama/nomic-embed-text", provider="ollama",
-            embeddings=[FAKE_VECTOR, FAKE_VECTOR],
-        ))
+        mock_fn = MagicMock(
+            return_value=EmbeddingResponse(
+                model="ollama/nomic-embed-text",
+                provider="ollama",
+                embeddings=[FAKE_VECTOR, FAKE_VECTOR],
+            )
+        )
         with patch("llmgate.embeddings._embed_ollama", mock_fn):
             resp = embed("ollama/nomic-embed-text", ["a", "b"])
         mock_fn.assert_called_once()
@@ -378,27 +417,39 @@ class TestOllamaEmbeddings:
         assert len(resp.embeddings) == 2
 
     def test_truncate_true(self):
-        mock_fn = MagicMock(return_value=EmbeddingResponse(
-            model="ollama/nomic-embed-text", provider="ollama", embeddings=[FAKE_VECTOR],
-        ))
+        mock_fn = MagicMock(
+            return_value=EmbeddingResponse(
+                model="ollama/nomic-embed-text",
+                provider="ollama",
+                embeddings=[FAKE_VECTOR],
+            )
+        )
         with patch("llmgate.embeddings._embed_ollama", mock_fn):
             embed("ollama/nomic-embed-text", "hi", truncate="true")
         req = mock_fn.call_args[0][0]
         assert req.truncate == "true"
 
     def test_truncate_false(self):
-        mock_fn = MagicMock(return_value=EmbeddingResponse(
-            model="ollama/nomic-embed-text", provider="ollama", embeddings=[FAKE_VECTOR],
-        ))
+        mock_fn = MagicMock(
+            return_value=EmbeddingResponse(
+                model="ollama/nomic-embed-text",
+                provider="ollama",
+                embeddings=[FAKE_VECTOR],
+            )
+        )
         with patch("llmgate.embeddings._embed_ollama", mock_fn):
             embed("ollama/nomic-embed-text", "hi", truncate="false")
         req = mock_fn.call_args[0][0]
         assert req.truncate == "false"
 
     def test_keep_alive_via_extra_kwargs(self):
-        mock_fn = MagicMock(return_value=EmbeddingResponse(
-            model="ollama/nomic-embed-text", provider="ollama", embeddings=[FAKE_VECTOR],
-        ))
+        mock_fn = MagicMock(
+            return_value=EmbeddingResponse(
+                model="ollama/nomic-embed-text",
+                provider="ollama",
+                embeddings=[FAKE_VECTOR],
+            )
+        )
         with patch("llmgate.embeddings._embed_ollama", mock_fn):
             embed("ollama/nomic-embed-text", "hi", keep_alive="1h")
         req = mock_fn.call_args[0][0]
@@ -409,12 +460,16 @@ class TestOllamaEmbeddings:
 # Bedrock — parallel calls, normalize, dimensions in body
 # ---------------------------------------------------------------------------
 
+
 class TestBedrockEmbeddings:
     def test_normalize_in_body(self):
-        mock_fn = MagicMock(return_value=EmbeddingResponse(
-            model="bedrock/amazon.titan-embed-text-v2:0", provider="bedrock",
-            embeddings=[FAKE_VECTOR],
-        ))
+        mock_fn = MagicMock(
+            return_value=EmbeddingResponse(
+                model="bedrock/amazon.titan-embed-text-v2:0",
+                provider="bedrock",
+                embeddings=[FAKE_VECTOR],
+            )
+        )
         with patch("llmgate.embeddings._embed_bedrock", mock_fn):
             embed("bedrock/amazon.titan-embed-text-v2:0", "hi")
         req = mock_fn.call_args[0][0]
@@ -422,33 +477,43 @@ class TestBedrockEmbeddings:
         assert req.extra_kwargs.get("normalize", True) is True
 
     def test_normalize_false_override(self):
-        mock_fn = MagicMock(return_value=EmbeddingResponse(
-            model="bedrock/amazon.titan-embed-text-v2:0", provider="bedrock",
-            embeddings=[FAKE_VECTOR],
-        ))
+        mock_fn = MagicMock(
+            return_value=EmbeddingResponse(
+                model="bedrock/amazon.titan-embed-text-v2:0",
+                provider="bedrock",
+                embeddings=[FAKE_VECTOR],
+            )
+        )
         with patch("llmgate.embeddings._embed_bedrock", mock_fn):
             embed("bedrock/amazon.titan-embed-text-v2:0", "hi", normalize=False)
         req = mock_fn.call_args[0][0]
         assert req.extra_kwargs.get("normalize") is False
 
     def test_dimensions_in_request(self):
-        mock_fn = MagicMock(return_value=EmbeddingResponse(
-            model="bedrock/amazon.titan-embed-text-v2:0", provider="bedrock",
-            embeddings=[FAKE_VECTOR],
-        ))
+        mock_fn = MagicMock(
+            return_value=EmbeddingResponse(
+                model="bedrock/amazon.titan-embed-text-v2:0",
+                provider="bedrock",
+                embeddings=[FAKE_VECTOR],
+            )
+        )
         with patch("llmgate.embeddings._embed_bedrock", mock_fn):
             embed("bedrock/amazon.titan-embed-text-v2:0", "hi", dimensions=512)
         req = mock_fn.call_args[0][0]
         assert req.dimensions == 512
 
     def test_parallel_batch_called_once_per_input(self):
-        mock_fn = MagicMock(return_value=EmbeddingResponse(
-            model="bedrock/amazon.titan-embed-text-v2:0", provider="bedrock",
-            embeddings=[FAKE_VECTOR] * 5,
-        ))
+        mock_fn = MagicMock(
+            return_value=EmbeddingResponse(
+                model="bedrock/amazon.titan-embed-text-v2:0",
+                provider="bedrock",
+                embeddings=[FAKE_VECTOR] * 5,
+            )
+        )
         with patch("llmgate.embeddings._embed_bedrock", mock_fn):
-            resp = embed("bedrock/amazon.titan-embed-text-v2:0",
-                         ["0", "1", "2", "3", "4"])
+            resp = embed(
+                "bedrock/amazon.titan-embed-text-v2:0", ["0", "1", "2", "3", "4"]
+            )
         mock_fn.assert_called_once()
         assert len(resp.embeddings) == 5
 
@@ -457,10 +522,12 @@ class TestBedrockEmbeddings:
 # EmbeddingResponse model
 # ---------------------------------------------------------------------------
 
+
 class TestEmbeddingResponse:
     def test_always_list_of_lists(self):
         resp = EmbeddingResponse(
-            model="text-embedding-3-small", provider="openai",
+            model="text-embedding-3-small",
+            provider="openai",
             embeddings=[[0.1, 0.2], [0.3, 0.4]],
         )
         assert isinstance(resp.embeddings, list)
@@ -468,7 +535,10 @@ class TestEmbeddingResponse:
 
     def test_raw_excluded_from_serialisation(self):
         resp = EmbeddingResponse(
-            model="m", provider="openai", embeddings=[[0.1]], raw={"some": "object"},
+            model="m",
+            provider="openai",
+            embeddings=[[0.1]],
+            raw={"some": "object"},
         )
         assert "raw" not in resp.model_dump()
 
@@ -481,12 +551,16 @@ class TestEmbeddingResponse:
 # LLMGate.embed() delegation
 # ---------------------------------------------------------------------------
 
+
 class TestLLMGateEmbed:
     def test_gate_embed_delegates(self):
         from llmgate import LLMGate
+
         gate = LLMGate()
         expected = EmbeddingResponse(
-            model="text-embedding-3-small", provider="openai", embeddings=[FAKE_VECTOR],
+            model="text-embedding-3-small",
+            provider="openai",
+            embeddings=[FAKE_VECTOR],
         )
         with patch("llmgate.gate._embed_fn", return_value=expected):
             resp = gate.embed("text-embedding-3-small", "hello")
@@ -495,9 +569,12 @@ class TestLLMGateEmbed:
     @pytest.mark.asyncio
     async def test_gate_aembed_delegates(self):
         from llmgate import LLMGate
+
         gate = LLMGate()
         expected = EmbeddingResponse(
-            model="text-embedding-3-small", provider="openai", embeddings=[FAKE_VECTOR],
+            model="text-embedding-3-small",
+            provider="openai",
+            embeddings=[FAKE_VECTOR],
         )
         with patch("llmgate.gate._aembed_fn", new=AsyncMock(return_value=expected)):
             resp = await gate.aembed("text-embedding-3-small", "hello")
@@ -506,13 +583,60 @@ class TestLLMGateEmbed:
     def test_gate_embed_passes_task_type(self):
         """Named params must flow through gate.embed() correctly."""
         from llmgate import LLMGate
+
         gate = LLMGate()
         expected = EmbeddingResponse(
-            model="gemini/text-embedding-004", provider="gemini", embeddings=[FAKE_VECTOR],
+            model="gemini/text-embedding-004",
+            provider="gemini",
+            embeddings=[FAKE_VECTOR],
         )
         with patch("llmgate.gate._embed_fn", return_value=expected) as mock_fn:
-            gate.embed("gemini/text-embedding-004", "hi",
-                       task_type="RETRIEVAL_DOCUMENT")
+            gate.embed(
+                "gemini/text-embedding-004", "hi", task_type="RETRIEVAL_DOCUMENT"
+            )
         # task_type should appear in the kwargs passed to _embed_fn
         _, call_kwargs = mock_fn.call_args
         assert call_kwargs.get("task_type") == "RETRIEVAL_DOCUMENT"
+
+
+class TestLLMGateEmbedMiddleware:
+    def test_gate_embed_with_retry_middleware(self):
+        from llmgate import LLMGate
+        from llmgate.middleware import RetryMiddleware
+        from llmgate.exceptions import RateLimitError
+
+        gate = LLMGate(middleware=[RetryMiddleware(max_retries=2, backoff_factor=0.01)])
+        expected = EmbeddingResponse(
+            model="openai",
+            provider="openai",
+            embeddings=[FAKE_VECTOR],
+        )
+
+        mock_fn = MagicMock(side_effect=[RateLimitError("Too many requests"), expected])
+
+        with patch("llmgate.gate._embed_fn", mock_fn):
+            resp = gate.embed("text-embedding-3-small", "hello")
+
+        assert resp == expected
+        assert mock_fn.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_gate_aembed_with_retry_middleware(self):
+        from llmgate import LLMGate
+        from llmgate.middleware import RetryMiddleware
+        from llmgate.exceptions import RateLimitError
+
+        gate = LLMGate(middleware=[RetryMiddleware(max_retries=2, backoff_factor=0.01)])
+        expected = EmbeddingResponse(
+            model="openai",
+            provider="openai",
+            embeddings=[FAKE_VECTOR],
+        )
+
+        mock_fn = AsyncMock(side_effect=[RateLimitError("Too many requests"), expected])
+
+        with patch("llmgate.gate._aembed_fn", mock_fn):
+            resp = await gate.aembed("text-embedding-3-small", "hello")
+
+        assert resp == expected
+        assert mock_fn.call_count == 2

@@ -25,6 +25,7 @@ Usage::
     for chunk in gate.stream("groq/llama-3.1-8b-instant", messages):
         print(chunk.delta, end="", flush=True)
 """
+
 from __future__ import annotations
 
 from typing import Any, AsyncIterator, Iterator
@@ -36,9 +37,20 @@ from llmgate.completion import (
 )
 from llmgate.embeddings import aembed as _aembed_fn
 from llmgate.embeddings import embed as _embed_fn
-from llmgate.middleware.base import AsyncNext, BaseMiddleware, SyncNext
+from llmgate.middleware.base import (
+    AsyncEmbedNext,
+    AsyncNext,
+    BaseMiddleware,
+    SyncEmbedNext,
+    SyncNext,
+)
 from llmgate.types import (
-    CompletionRequest, CompletionResponse, EmbeddingResponse, Message, StreamChunk,
+    CompletionRequest,
+    CompletionResponse,
+    EmbeddingRequest,
+    EmbeddingResponse,
+    Message,
+    StreamChunk,
 )
 
 
@@ -81,6 +93,28 @@ def _build_stream_async_chain(middlewares: list[BaseMiddleware], inner: Any) -> 
     for mw in reversed(middlewares):
         _mw, _next = mw, chain
         chain = lambda req, _mw=_mw, _next=_next: _mw.astream_handle(req, _next)  # noqa: E731
+    return chain
+
+
+def _build_embed_sync_chain(
+    middlewares: list[BaseMiddleware],
+    inner: SyncEmbedNext,
+) -> SyncEmbedNext:
+    chain = inner
+    for mw in reversed(middlewares):
+        _mw, _next = mw, chain
+        chain = lambda req, _mw=_mw, _next=_next: _mw.embed_handle(req, _next)  # noqa: E731
+    return chain
+
+
+def _build_embed_async_chain(
+    middlewares: list[BaseMiddleware],
+    inner: AsyncEmbedNext,
+) -> AsyncEmbedNext:
+    chain = inner
+    for mw in reversed(middlewares):
+        _mw, _next = mw, chain
+        chain = lambda req, _mw=_mw, _next=_next: _mw.aembed_handle(req, _next)  # noqa: E731
     return chain
 
 
@@ -140,6 +174,7 @@ class LLMGate:
         if effective_models:
             # Full fallback loop — middleware applied per-candidate
             from llmgate.fallback import _try_models_sync  # noqa: PLC0415
+
             return _try_models_sync(
                 effective_models,
                 messages,
@@ -149,9 +184,15 @@ class LLMGate:
             )
 
         # Single-model path
-        single_model = model if isinstance(model, str) else (model[0] if isinstance(model, list) else None)
+        single_model = (
+            model
+            if isinstance(model, str)
+            else (model[0] if isinstance(model, list) else None)
+        )
         if single_model is None:
-            raise ValueError("Provide a model string or set fallback_chain on the gate.")
+            raise ValueError(
+                "Provide a model string or set fallback_chain on the gate."
+            )
         request = _build_request(single_model, messages, stream=False, kwargs=merged)
         provider = _get_or_create_provider(single_model, merged.get("provider"))
 
@@ -179,6 +220,7 @@ class LLMGate:
 
         if len(effective_models) > 1:
             from llmgate.fallback import _try_models_stream_sync  # noqa: PLC0415
+
             return _try_models_stream_sync(
                 effective_models,
                 messages,
@@ -197,7 +239,11 @@ class LLMGate:
         def _inner(req: CompletionRequest) -> Iterator[StreamChunk]:
             return provider.stream(req)
 
-        chain = _build_stream_sync_chain(self._middleware, _inner) if self._middleware else _inner
+        chain = (
+            _build_stream_sync_chain(self._middleware, _inner)
+            if self._middleware
+            else _inner
+        )
         return chain(request)
 
     # ------------------------------------------------------------------
@@ -223,6 +269,7 @@ class LLMGate:
 
         if effective_models:
             from llmgate.fallback import _try_models_async  # noqa: PLC0415
+
             return await _try_models_async(
                 effective_models,
                 messages,
@@ -231,9 +278,15 @@ class LLMGate:
                 **merged,
             )
 
-        single_model = model if isinstance(model, str) else (model[0] if isinstance(model, list) else None)
+        single_model = (
+            model
+            if isinstance(model, str)
+            else (model[0] if isinstance(model, list) else None)
+        )
         if single_model is None:
-            raise ValueError("Provide a model string or set fallback_chain on the gate.")
+            raise ValueError(
+                "Provide a model string or set fallback_chain on the gate."
+            )
         request = _build_request(single_model, messages, stream=False, kwargs=merged)
         provider = _get_or_create_provider(single_model, merged.get("provider"))
 
@@ -261,6 +314,7 @@ class LLMGate:
 
         if len(effective_models) > 1:
             from llmgate.fallback import _try_models_stream_async  # noqa: PLC0415
+
             async for chunk in _try_models_stream_async(
                 effective_models,
                 messages,
@@ -281,7 +335,11 @@ class LLMGate:
         async def _inner(req: CompletionRequest) -> AsyncIterator[StreamChunk]:
             return provider.astream(req)
 
-        chain = _build_stream_async_chain(self._middleware, _inner) if self._middleware else _inner
+        chain = (
+            _build_stream_async_chain(self._middleware, _inner)
+            if self._middleware
+            else _inner
+        )
         async for chunk in await chain(request):
             yield chunk
 
@@ -295,9 +353,44 @@ class LLMGate:
         input: str | list[str],  # noqa: A002
         **kwargs: Any,
     ) -> EmbeddingResponse:
-        """Generate embeddings using the configured defaults."""
+        """Generate embeddings using the configured defaults and middleware stack."""
         merged = {**self._defaults, **kwargs}
-        return _embed_fn(model, input, api_key=merged.pop("api_key", None), **merged)
+        api_key = merged.pop("api_key", None)
+
+        request = EmbeddingRequest(
+            model=model,
+            input=input,
+            dimensions=merged.pop("dimensions", None),
+            task_type=merged.pop("task_type", None),
+            title=merged.pop("title", None),
+            input_type=merged.pop("input_type", None),
+            truncate=merged.pop("truncate", None),
+            encoding_format=merged.pop("encoding_format", None),
+            user=merged.pop("user", None),
+            extra_kwargs=merged,
+        )
+
+        def _inner(req: EmbeddingRequest) -> EmbeddingResponse:
+            return _embed_fn(
+                model=req.model,
+                input=req.input,
+                api_key=api_key,
+                dimensions=req.dimensions,
+                task_type=req.task_type,
+                title=req.title,
+                input_type=req.input_type,
+                truncate=req.truncate,
+                encoding_format=req.encoding_format,
+                user=req.user,
+                **req.extra_kwargs,
+            )
+
+        chain = (
+            _build_embed_sync_chain(self._middleware, _inner)
+            if self._middleware
+            else _inner
+        )
+        return chain(request)
 
     async def aembed(
         self,
@@ -307,7 +400,42 @@ class LLMGate:
     ) -> EmbeddingResponse:
         """Async version of :meth:`embed`."""
         merged = {**self._defaults, **kwargs}
-        return await _aembed_fn(model, input, api_key=merged.pop("api_key", None), **merged)
+        api_key = merged.pop("api_key", None)
+
+        request = EmbeddingRequest(
+            model=model,
+            input=input,
+            dimensions=merged.pop("dimensions", None),
+            task_type=merged.pop("task_type", None),
+            title=merged.pop("title", None),
+            input_type=merged.pop("input_type", None),
+            truncate=merged.pop("truncate", None),
+            encoding_format=merged.pop("encoding_format", None),
+            user=merged.pop("user", None),
+            extra_kwargs=merged,
+        )
+
+        async def _inner(req: EmbeddingRequest) -> EmbeddingResponse:
+            return await _aembed_fn(
+                model=req.model,
+                input=req.input,
+                api_key=api_key,
+                dimensions=req.dimensions,
+                task_type=req.task_type,
+                title=req.title,
+                input_type=req.input_type,
+                truncate=req.truncate,
+                encoding_format=req.encoding_format,
+                user=req.user,
+                **req.extra_kwargs,
+            )
+
+        chain = (
+            _build_embed_async_chain(self._middleware, _inner)
+            if self._middleware
+            else _inner
+        )
+        return await chain(request)
 
     # ------------------------------------------------------------------
     # Batch

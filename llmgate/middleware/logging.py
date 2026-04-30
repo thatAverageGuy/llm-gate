@@ -11,6 +11,7 @@ Usage::
 
     gate = LLMGate(middleware=[LoggingMiddleware(level="DEBUG")])
 """
+
 from __future__ import annotations
 
 import logging
@@ -51,7 +52,8 @@ class LoggingMiddleware(BaseMiddleware):
             "has_tools": bool(request.tools),
             "stream": request.stream,
             "messages": (
-                "[masked]" if self._mask_content
+                "[masked]"
+                if self._mask_content
                 else [{"role": m.role, "content": m.content} for m in msgs]
             ),
         }
@@ -87,14 +89,19 @@ class LoggingMiddleware(BaseMiddleware):
             elapsed = time.perf_counter() - t0
             logger.error(
                 "llmgate error",
-                extra={"model": request.model, "latency_s": round(elapsed, 3),
-                       "error": str(exc), "error_type": type(exc).__name__},
+                extra={
+                    "model": request.model,
+                    "latency_s": round(elapsed, 3),
+                    "error": str(exc),
+                    "error_type": type(exc).__name__,
+                },
                 exc_info=True,
             )
             raise
         elapsed = time.perf_counter() - t0
         logger.log(
-            self._level, "llmgate response",
+            self._level,
+            "llmgate response",
             extra=self._response_extra(request, resp, elapsed),
         )
         return resp
@@ -105,6 +112,7 @@ class LoggingMiddleware(BaseMiddleware):
         call_next: AsyncNext,
     ) -> CompletionResponse:
         import time as _time  # noqa: PLC0415
+
         logger.log(self._level, "llmgate request", extra=self._request_extra(request))
         t0 = _time.perf_counter()
         try:
@@ -113,14 +121,19 @@ class LoggingMiddleware(BaseMiddleware):
             elapsed = _time.perf_counter() - t0
             logger.error(
                 "llmgate error",
-                extra={"model": request.model, "latency_s": round(elapsed, 3),
-                       "error": str(exc), "error_type": type(exc).__name__},
+                extra={
+                    "model": request.model,
+                    "latency_s": round(elapsed, 3),
+                    "error": str(exc),
+                    "error_type": type(exc).__name__,
+                },
                 exc_info=True,
             )
             raise
         elapsed = _time.perf_counter() - t0
         logger.log(
-            self._level, "llmgate response",
+            self._level,
+            "llmgate response",
             extra=self._response_extra(request, resp, elapsed),
         )
         return resp

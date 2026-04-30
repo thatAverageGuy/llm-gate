@@ -5,6 +5,7 @@ OpenAI provider — wraps the official ``openai`` Python SDK.
 
 Supported model prefixes: ``gpt-``, ``o1-``, ``o3-``, ``chatgpt-``
 """
+
 from __future__ import annotations
 
 import json
@@ -14,13 +15,24 @@ from typing import Any, AsyncIterator, ClassVar, Iterator
 from llmgate.base import BaseProvider
 from llmgate.exceptions import AuthError, ProviderAPIError, RateLimitError
 from llmgate.types import (
-    Choice, CompletionRequest, CompletionResponse, Message, StreamChunk, ToolCall, TokenUsage,
+    Choice,
+    CompletionRequest,
+    CompletionResponse,
+    Message,
+    StreamChunk,
+    ToolCall,
+    TokenUsage,
 )
 
 
 class OpenAIProvider(BaseProvider):
     name: ClassVar[str] = "openai"
-    supported_model_prefixes: ClassVar[tuple[str, ...]] = ("gpt-", "o1-", "o3-", "chatgpt-")
+    supported_model_prefixes: ClassVar[tuple[str, ...]] = (
+        "gpt-",
+        "o1-",
+        "o3-",
+        "chatgpt-",
+    )
     # OpenAI Chat Completions API does not officially support assistant prefill.
     # The model may ignore, repeat, or restart from the prefill text.
     # o1/o3 reasoning models especially ignore it due to internal CoT processing.
@@ -48,6 +60,7 @@ class OpenAIProvider(BaseProvider):
 
     def _build_params(self, request: CompletionRequest) -> dict[str, Any]:
         from llmgate import vision  # noqa: PLC0415
+
         messages = []
         for m in request.messages:
             d = m.to_dict()
@@ -81,6 +94,7 @@ class OpenAIProvider(BaseProvider):
                 params["tool_choice"] = request.tool_choice
         if request.response_format is not None:
             from llmgate.structured import get_json_schema  # noqa: PLC0415
+
             schema = get_json_schema(request.response_format)
             params["response_format"] = {
                 "type": "json_schema",
@@ -104,19 +118,23 @@ class OpenAIProvider(BaseProvider):
             result.append(ToolCall(id=tc.id, function=tc.function.name, arguments=args))
         return result or None
 
-    def _map_response(self, raw: Any, model: str, response_format: Any = None) -> CompletionResponse:
+    def _map_response(
+        self, raw: Any, model: str, response_format: Any = None
+    ) -> CompletionResponse:
         choices = []
         for c in raw.choices:
             tool_calls = self._parse_tool_calls(getattr(c.message, "tool_calls", None))
-            choices.append(Choice(
-                index=c.index,
-                message=Message(
-                    role=c.message.role,
-                    content=c.message.content or None,
-                    tool_calls=tool_calls,
-                ),
-                finish_reason=c.finish_reason,
-            ))
+            choices.append(
+                Choice(
+                    index=c.index,
+                    message=Message(
+                        role=c.message.role,
+                        content=c.message.content or None,
+                        tool_calls=tool_calls,
+                    ),
+                    finish_reason=c.finish_reason,
+                )
+            )
         usage = TokenUsage(
             prompt_tokens=raw.usage.prompt_tokens if raw.usage else 0,
             completion_tokens=raw.usage.completion_tokens if raw.usage else 0,
@@ -125,6 +143,7 @@ class OpenAIProvider(BaseProvider):
         parsed = None
         if response_format is not None and choices:
             from llmgate.structured import validate_parsed  # noqa: PLC0415
+
             parsed = validate_parsed(choices[0].message.content, response_format)
         return CompletionResponse(
             id=raw.id,

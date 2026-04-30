@@ -10,6 +10,7 @@ Providers pull these helpers to:
   4. Inject a schema-describing system message for providers without native
      JSON mode.
 """
+
 from __future__ import annotations
 
 import json
@@ -25,6 +26,7 @@ T = TypeVar("T")
 # ---------------------------------------------------------------------------
 # JSON Schema generation
 # ---------------------------------------------------------------------------
+
 
 def get_json_schema(model_cls: type[BaseModel]) -> dict[str, Any]:
     """Return the JSON Schema dict for a Pydantic model (v2 API)."""
@@ -68,6 +70,7 @@ def extract_json(text: str) -> str:
 # Validation
 # ---------------------------------------------------------------------------
 
+
 def validate_parsed(text: str | None, model_cls: type[T]) -> T:  # type: ignore[type-var]
     """
     Extract JSON from ``text`` and validate it against ``model_cls``.
@@ -81,7 +84,9 @@ def validate_parsed(text: str | None, model_cls: type[T]) -> T:  # type: ignore[
     raw = extract_json(text or "")
     data = json.loads(raw)
     if not isinstance(model_cls, type) or not issubclass(model_cls, BaseModel):
-        raise TypeError(f"response_format must be a Pydantic BaseModel subclass, got {model_cls!r}")
+        raise TypeError(
+            f"response_format must be a Pydantic BaseModel subclass, got {model_cls!r}"
+        )
     return model_cls.model_validate(data)  # type: ignore[return-value]
 
 

@@ -12,6 +12,7 @@ Anthropic's API has several peculiarities we handle here:
 4. Tool calls come back as ``tool_use`` content blocks.
 5. Tool results go back as special ``tool_result`` content in user messages.
 """
+
 from __future__ import annotations
 
 import os
@@ -21,7 +22,13 @@ from typing import Any, AsyncIterator, ClassVar, Iterator
 from llmgate.base import BaseProvider
 from llmgate.exceptions import AuthError, ProviderAPIError, RateLimitError
 from llmgate.types import (
-    Choice, CompletionRequest, CompletionResponse, Message, StreamChunk, ToolCall, TokenUsage,
+    Choice,
+    CompletionRequest,
+    CompletionResponse,
+    Message,
+    StreamChunk,
+    ToolCall,
+    TokenUsage,
 )
 
 
@@ -36,7 +43,9 @@ class AnthropicProvider(BaseProvider):
         try:
             import anthropic  # noqa: PLC0415
         except ImportError as e:  # pragma: no cover
-            raise ImportError("anthropic package is required: pip install anthropic") from e
+            raise ImportError(
+                "anthropic package is required: pip install anthropic"
+            ) from e
 
         self._anthropic = anthropic
         resolved_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
@@ -46,14 +55,18 @@ class AnthropicProvider(BaseProvider):
                 provider=self.name,
             )
         self._client = anthropic.Anthropic(api_key=resolved_key, **client_kwargs)
-        self._async_client = anthropic.AsyncAnthropic(api_key=resolved_key, **client_kwargs)
+        self._async_client = anthropic.AsyncAnthropic(
+            api_key=resolved_key, **client_kwargs
+        )
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _build_messages(messages: list[Message]) -> tuple[str | None, list[dict[str, Any]]]:
+    def _build_messages(
+        messages: list[Message],
+    ) -> tuple[str | None, list[dict[str, Any]]]:
         """
         Split system prompt and convert messages to Anthropic format.
 
@@ -70,19 +83,27 @@ class AnthropicProvider(BaseProvider):
 
         for msg in messages:
             if msg.role == "system":
-                system_parts.append(msg.content or "" if isinstance(msg.content, str) else "")
+                system_parts.append(
+                    msg.content or "" if isinstance(msg.content, str) else ""
+                )
                 continue
 
             if msg.role == "tool":
                 # Tool result — sent as a user message with tool_result content block
-                result.append({
-                    "role": "user",
-                    "content": [{
-                        "type": "tool_result",
-                        "tool_use_id": msg.tool_call_id or "",
-                        "content": msg.content or "" if isinstance(msg.content, str) else "",
-                    }],
-                })
+                result.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": msg.tool_call_id or "",
+                                "content": msg.content or ""
+                                if isinstance(msg.content, str)
+                                else "",
+                            }
+                        ],
+                    }
+                )
                 continue
 
             if msg.role == "assistant" and msg.tool_calls:
@@ -96,12 +117,14 @@ class AnthropicProvider(BaseProvider):
                         if isinstance(anthropic_content, list):
                             content_blocks.extend(anthropic_content)
                 for tc in msg.tool_calls:
-                    content_blocks.append({
-                        "type": "tool_use",
-                        "id": tc.id,
-                        "name": tc.function,
-                        "input": tc.arguments,
-                    })
+                    content_blocks.append(
+                        {
+                            "type": "tool_use",
+                            "id": tc.id,
+                            "name": tc.function,
+                            "input": tc.arguments,
+                        }
+                    )
                 result.append({"role": "assistant", "content": content_blocks})
                 continue
 
@@ -119,6 +142,7 @@ class AnthropicProvider(BaseProvider):
         messages = request.messages
         if request.response_format is not None:
             from llmgate.structured import inject_schema_prompt  # noqa: PLC0415
+
             messages = inject_schema_prompt(messages, request.response_format)
         system, msgs = self._build_messages(messages)
         params: dict[str, Any] = {
@@ -147,12 +171,17 @@ class AnthropicProvider(BaseProvider):
                     if request.tool_choice in ("auto", "none"):
                         params["tool_choice"] = {"type": request.tool_choice}
                     else:
-                        params["tool_choice"] = {"type": "tool", "name": request.tool_choice}
+                        params["tool_choice"] = {
+                            "type": "tool",
+                            "name": request.tool_choice,
+                        }
                 else:
                     params["tool_choice"] = request.tool_choice
         return params
 
-    def _map_response(self, raw: Any, model: str, response_format: Any = None) -> CompletionResponse:
+    def _map_response(
+        self, raw: Any, model: str, response_format: Any = None
+    ) -> CompletionResponse:
         text_parts: list[str] = []
         tool_calls: list[ToolCall] = []
 
@@ -160,21 +189,26 @@ class AnthropicProvider(BaseProvider):
             if getattr(block, "type", None) == "text":
                 text_parts.append(block.text)
             elif getattr(block, "type", None) == "tool_use":
-                tool_calls.append(ToolCall(
-                    id=block.id,
-                    function=block.name,
-                    arguments=dict(block.input) if block.input else {},
-                ))
+                tool_calls.append(
+                    ToolCall(
+                        id=block.id,
+                        function=block.name,
+                        arguments=dict(block.input) if block.input else {},
+                    )
+                )
 
         content = "\n".join(text_parts) if text_parts else None
         usage = TokenUsage(
             prompt_tokens=raw.usage.input_tokens if raw.usage else 0,
             completion_tokens=raw.usage.output_tokens if raw.usage else 0,
-            total_tokens=(raw.usage.input_tokens + raw.usage.output_tokens) if raw.usage else 0,
+            total_tokens=(raw.usage.input_tokens + raw.usage.output_tokens)
+            if raw.usage
+            else 0,
         )
         parsed = None
         if response_format is not None and content:
             from llmgate.structured import validate_parsed  # noqa: PLC0415
+
             parsed = validate_parsed(content, response_format)
         return CompletionResponse(
             id=raw.id,
@@ -219,7 +253,9 @@ class AnthropicProvider(BaseProvider):
 
     async def acomplete(self, request: CompletionRequest) -> CompletionResponse:
         try:
-            raw = await self._async_client.messages.create(**self._build_params(request))
+            raw = await self._async_client.messages.create(
+                **self._build_params(request)
+            )
         except Exception as exc:  # noqa: BLE001
             self._handle_error(exc)
         return self._map_response(raw, request.model, request.response_format)
@@ -241,7 +277,9 @@ class AnthropicProvider(BaseProvider):
     async def astream(self, request: CompletionRequest) -> AsyncIterator[StreamChunk]:
         chunk_id = str(uuid.uuid4())
         try:
-            async with self._async_client.messages.stream(**self._build_params(request)) as s:
+            async with self._async_client.messages.stream(
+                **self._build_params(request)
+            ) as s:
                 async for text in s.text_stream:
                     yield StreamChunk(
                         id=chunk_id,

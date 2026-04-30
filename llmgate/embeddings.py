@@ -38,6 +38,7 @@ Usage::
     # Async
     resp = await aembed("gemini/text-embedding-004", "Hello")
 """
+
 from __future__ import annotations
 
 import os
@@ -69,7 +70,8 @@ def _embed_openai(
         client = openai.AzureOpenAI(
             api_key=api_key or os.environ.get("AZURE_OPENAI_API_KEY"),
             azure_endpoint=azure_endpoint,
-            api_version=api_version or os.environ.get("AZURE_OPENAI_API_VERSION", "2024-02-01"),
+            api_version=api_version
+            or os.environ.get("AZURE_OPENAI_API_VERSION", "2024-02-01"),
         )
         provider_name = "azure"
     else:
@@ -123,7 +125,8 @@ async def _aembed_openai(
         client = openai.AsyncAzureOpenAI(
             api_key=api_key or os.environ.get("AZURE_OPENAI_API_KEY"),
             azure_endpoint=azure_endpoint,
-            api_version=api_version or os.environ.get("AZURE_OPENAI_API_VERSION", "2024-02-01"),
+            api_version=api_version
+            or os.environ.get("AZURE_OPENAI_API_VERSION", "2024-02-01"),
         )
         provider_name = "azure"
     else:
@@ -166,15 +169,19 @@ def _embed_gemini(request: EmbeddingRequest, api_key: str | None) -> EmbeddingRe
         from google import genai  # noqa: PLC0415
         from google.genai import types as genai_types  # noqa: PLC0415
     except ImportError as e:
-        raise ImportError("google-genai package required: pip install google-genai") from e
+        raise ImportError(
+            "google-genai package required: pip install google-genai"
+        ) from e
 
-    resolved_key = api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    resolved_key = (
+        api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    )
     client = genai.Client(api_key=resolved_key)
 
     # Strip "gemini/" prefix if present
     model_name = request.model
     if model_name.startswith("gemini/"):
-        model_name = model_name[len("gemini/"):]
+        model_name = model_name[len("gemini/") :]
 
     # TRUE BATCH: pass all inputs in a single call (contents accepts a list)
     inputs = request.input if isinstance(request.input, list) else [request.input]
@@ -189,7 +196,9 @@ def _embed_gemini(request: EmbeddingRequest, api_key: str | None) -> EmbeddingRe
         config_kwargs["title"] = request.title
     config_kwargs.update(request.extra_kwargs)
 
-    embed_config = genai_types.EmbedContentConfig(**config_kwargs) if config_kwargs else None
+    embed_config = (
+        genai_types.EmbedContentConfig(**config_kwargs) if config_kwargs else None
+    )
 
     try:
         call_kwargs: dict[str, Any] = {"model": model_name, "contents": inputs}
@@ -216,8 +225,11 @@ def _embed_gemini(request: EmbeddingRequest, api_key: str | None) -> EmbeddingRe
     )
 
 
-async def _aembed_gemini(request: EmbeddingRequest, api_key: str | None) -> EmbeddingResponse:
+async def _aembed_gemini(
+    request: EmbeddingRequest, api_key: str | None
+) -> EmbeddingResponse:
     import asyncio  # noqa: PLC0415
+
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _embed_gemini, request, api_key)
 
@@ -233,13 +245,15 @@ def _embed_cohere(request: EmbeddingRequest, api_key: str | None) -> EmbeddingRe
 
     model_name = request.model
     if model_name.startswith("cohere/"):
-        model_name = model_name[len("cohere/"):]
+        model_name = model_name[len("cohere/") :]
 
     inputs = request.input if isinstance(request.input, list) else [request.input]
 
     # input_type: first-class field > extra_kwargs > safe default
     # NOTE: Always set this for production — wrong type degrades retrieval quality.
-    input_type = request.input_type or request.extra_kwargs.get("input_type", "search_document")
+    input_type = request.input_type or request.extra_kwargs.get(
+        "input_type", "search_document"
+    )
     embedding_types = request.extra_kwargs.get("embedding_types", ["float"])
 
     kwargs: dict[str, Any] = {
@@ -262,21 +276,32 @@ def _embed_cohere(request: EmbeddingRequest, api_key: str | None) -> EmbeddingRe
     except Exception as exc:
         raise ProviderAPIError(str(exc), provider="cohere") from exc
 
-    emb_data = getattr(raw.embeddings, "float_", None) or getattr(raw.embeddings, "float", None) or []
+    emb_data = (
+        getattr(raw.embeddings, "float_", None)
+        or getattr(raw.embeddings, "float", None)
+        or []
+    )
     return EmbeddingResponse(
         model=request.model,
         provider="cohere",
         embeddings=[list(e) for e in emb_data],
         usage=TokenUsage(
-            prompt_tokens=getattr(raw.meta.billed_units, "input_tokens", 0) if getattr(raw, "meta", None) else 0,
-            total_tokens=getattr(raw.meta.billed_units, "input_tokens", 0) if getattr(raw, "meta", None) else 0,
+            prompt_tokens=getattr(raw.meta.billed_units, "input_tokens", 0)
+            if getattr(raw, "meta", None)
+            else 0,
+            total_tokens=getattr(raw.meta.billed_units, "input_tokens", 0)
+            if getattr(raw, "meta", None)
+            else 0,
         ),
         raw=raw,
     )
 
 
-async def _aembed_cohere(request: EmbeddingRequest, api_key: str | None) -> EmbeddingResponse:
+async def _aembed_cohere(
+    request: EmbeddingRequest, api_key: str | None
+) -> EmbeddingResponse:
     import asyncio  # noqa: PLC0415
+
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _embed_cohere, request, api_key)
 
@@ -292,7 +317,7 @@ def _embed_mistral(request: EmbeddingRequest, api_key: str | None) -> EmbeddingR
 
     model_name = request.model
     if model_name.startswith("mistral/"):
-        model_name = model_name[len("mistral/"):]
+        model_name = model_name[len("mistral/") :]
 
     inputs = request.input if isinstance(request.input, list) else [request.input]
 
@@ -323,8 +348,11 @@ def _embed_mistral(request: EmbeddingRequest, api_key: str | None) -> EmbeddingR
     )
 
 
-async def _aembed_mistral(request: EmbeddingRequest, api_key: str | None) -> EmbeddingResponse:
+async def _aembed_mistral(
+    request: EmbeddingRequest, api_key: str | None
+) -> EmbeddingResponse:
     import asyncio  # noqa: PLC0415
+
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _embed_mistral, request, api_key)
 
@@ -340,7 +368,7 @@ def _embed_ollama(request: EmbeddingRequest, api_key: str | None) -> EmbeddingRe
 
     model_name = request.model
     if model_name.startswith("ollama/"):
-        model_name = model_name[len("ollama/"):]
+        model_name = model_name[len("ollama/") :]
 
     # TRUE BATCH: pass the full list in one call
     inputs = request.input if isinstance(request.input, list) else [request.input]
@@ -354,7 +382,9 @@ def _embed_ollama(request: EmbeddingRequest, api_key: str | None) -> EmbeddingRe
 
     try:
         raw = client.embed(**kwargs)
-        vecs = raw.embeddings if hasattr(raw, "embeddings") else raw.get("embeddings", [])
+        vecs = (
+            raw.embeddings if hasattr(raw, "embeddings") else raw.get("embeddings", [])
+        )
         all_embeddings: list[list[float]] = [list(v) for v in vecs]
     except Exception as exc:
         raise ProviderAPIError(
@@ -369,14 +399,18 @@ def _embed_ollama(request: EmbeddingRequest, api_key: str | None) -> EmbeddingRe
     )
 
 
-async def _aembed_ollama(request: EmbeddingRequest, api_key: str | None) -> EmbeddingResponse:
+async def _aembed_ollama(
+    request: EmbeddingRequest, api_key: str | None
+) -> EmbeddingResponse:
     import asyncio  # noqa: PLC0415
+
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _embed_ollama, request, api_key)
 
 
 def _embed_bedrock(request: EmbeddingRequest, api_key: str | None) -> EmbeddingResponse:  # noqa: ARG001
     import json as _json  # noqa: PLC0415
+
     try:
         import boto3  # noqa: PLC0415
     except ImportError as e:
@@ -384,7 +418,7 @@ def _embed_bedrock(request: EmbeddingRequest, api_key: str | None) -> EmbeddingR
 
     model_id = request.model
     if model_id.startswith("bedrock/"):
-        model_id = model_id[len("bedrock/"):]
+        model_id = model_id[len("bedrock/") :]
 
     client = boto3.client("bedrock-runtime")
     inputs = request.input if isinstance(request.input, list) else [request.input]
@@ -393,7 +427,9 @@ def _embed_bedrock(request: EmbeddingRequest, api_key: str | None) -> EmbeddingR
     # normalize from extra_kwargs, default True (recommended for cosine sim / RAG)
     normalize = request.extra_kwargs.get("normalize", True)
     # input_type for Cohere-on-Bedrock
-    bedrock_input_type = request.input_type or request.extra_kwargs.get("input_type", "search_document")
+    bedrock_input_type = request.input_type or request.extra_kwargs.get(
+        "input_type", "search_document"
+    )
 
     def _invoke_one(text: str) -> tuple[list[float], int]:
         if is_cohere:
@@ -429,7 +465,9 @@ def _embed_bedrock(request: EmbeddingRequest, api_key: str | None) -> EmbeddingR
         all_embeddings: list[list[float]] = [None] * len(inputs)  # type: ignore[list-item]
         total_tokens = 0
         with ThreadPoolExecutor() as pool:
-            futures = {pool.submit(_invoke_one, text): i for i, text in enumerate(inputs)}
+            futures = {
+                pool.submit(_invoke_one, text): i for i, text in enumerate(inputs)
+            }
             for future in as_completed(futures):
                 idx = futures[future]
                 vec, tokens = future.result()
@@ -447,8 +485,11 @@ def _embed_bedrock(request: EmbeddingRequest, api_key: str | None) -> EmbeddingR
     )
 
 
-async def _aembed_bedrock(request: EmbeddingRequest, api_key: str | None) -> EmbeddingResponse:
+async def _aembed_bedrock(
+    request: EmbeddingRequest, api_key: str | None
+) -> EmbeddingResponse:
     import asyncio  # noqa: PLC0415
+
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _embed_bedrock, request, api_key)
 
@@ -456,6 +497,7 @@ async def _aembed_bedrock(request: EmbeddingRequest, api_key: str | None) -> Emb
 # ---------------------------------------------------------------------------
 # Routing
 # ---------------------------------------------------------------------------
+
 
 def _route(model: str) -> str:
     """Return the provider key for a given model string."""
@@ -482,6 +524,7 @@ def _route(model: str) -> str:
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def embed(
     model: str,
@@ -566,8 +609,11 @@ def embed(
         return _embed_gemini(request, api_key)
     if provider == "azure":
         return _embed_openai(
-            request, api_key,
-            azure_endpoint=kwargs.get("azure_endpoint", os.environ.get("AZURE_OPENAI_ENDPOINT")),
+            request,
+            api_key,
+            azure_endpoint=kwargs.get(
+                "azure_endpoint", os.environ.get("AZURE_OPENAI_ENDPOINT")
+            ),
             api_version=kwargs.get("api_version"),
         )
     if provider == "cohere":
@@ -578,7 +624,9 @@ def embed(
         return _embed_ollama(request, api_key)
     if provider == "bedrock":
         return _embed_bedrock(request, api_key)
-    raise ProviderAPIError(f"Unknown provider '{provider}' for model '{model}'", provider=provider)
+    raise ProviderAPIError(
+        f"Unknown provider '{provider}' for model '{model}'", provider=provider
+    )
 
 
 async def aembed(
@@ -620,8 +668,11 @@ async def aembed(
         return await _aembed_gemini(request, api_key)
     if provider == "azure":
         return await _aembed_openai(
-            request, api_key,
-            azure_endpoint=kwargs.get("azure_endpoint", os.environ.get("AZURE_OPENAI_ENDPOINT")),
+            request,
+            api_key,
+            azure_endpoint=kwargs.get(
+                "azure_endpoint", os.environ.get("AZURE_OPENAI_ENDPOINT")
+            ),
             api_version=kwargs.get("api_version"),
         )
     if provider == "cohere":
@@ -632,4 +683,6 @@ async def aembed(
         return await _aembed_ollama(request, api_key)
     if provider == "bedrock":
         return await _aembed_bedrock(request, api_key)
-    raise ProviderAPIError(f"Unknown provider '{provider}' for model '{model}'", provider=provider)
+    raise ProviderAPIError(
+        f"Unknown provider '{provider}' for model '{model}'", provider=provider
+    )

@@ -23,6 +23,22 @@ vectors: list[list[float]] = resp.embeddings   # one per input, same order
 
 ---
 
+## Using with Middleware
+
+Embedding calls fully support middleware chains (e.g. `RetryMiddleware`, `LoggingMiddleware`). You can apply them by using an `LLMGate` instance:
+
+```python
+from llmgate import LLMGate
+from llmgate.middleware import RetryMiddleware
+
+gate = LLMGate(middleware=[RetryMiddleware(max_retries=3)])
+
+# Automatically retries on 429 RateLimitError
+resp = gate.embed("text-embedding-3-small", "Hello world")
+```
+
+---
+
 ## Async
 
 ```python
@@ -34,6 +50,11 @@ resp = await aembed("text-embedding-3-small", "Hello world")
 ---
 
 ## Provider examples
+
+!!! note "Model Prefixes & Auto-Routing"
+    `llmgate` routes your request based on the model string. If a model string does not contain a recognized prefix (like `gemini/`, `cohere/`, `mistral/`, `bedrock/`, `ollama/`, `azure/`), it will **default to OpenAI**. 
+    
+    Because OpenAI's embedding models (e.g., `text-embedding-3-small`) do not have a distinct provider prefix like `gpt-`, they are routed to OpenAI by default. For all other providers, you **must** include the explicit provider prefix to avoid accidental routing to OpenAI.
 
 === "OpenAI"
 
