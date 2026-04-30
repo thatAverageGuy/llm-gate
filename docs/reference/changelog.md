@@ -4,7 +4,23 @@ All notable changes to llmgate are documented here.
 
 ---
 
-## v0.7.0 — 2026-04-30
+## v0.8.0 — 2026-04-30
+
+### ✨ Added — Streaming Fallback Resilience
+
+- **`stream=True` + model list** — Seamless mid-stream fallback recovery is now fully supported. You can pass a list of models alongside `stream=True` and if one fails mid-stream, llmgate will automatically failover to the next model in the chain.
+- **`stream_fallback_mode`** — New parameter to configure mid-stream recovery strategy:
+  - `"restart"` *(Default)*: Next model starts fresh. Safe and universally supported.
+  - `"prefill"`: Buffers partial text and injects it as an `assistant` prefill, allowing the fallback model to pick up exactly where the previous model left off. Supported natively by Gemini, Groq, Mistral, Cohere, and Ollama.
+  - `"user_turn"`: Wraps partial text in an assistant turn, followed by a user prompt to continue. Works universally.
+- **Auto-Downgrade logic**: Providers that do not support prefilling (OpenAI, Anthropic, Azure, Bedrock) are automatically detected and downgraded to `"user_turn"` to avoid API schema rejections mid-stream.
+- **Observability fields** added to `StreamChunk`:
+  - `chunk.fallback_attempts`: A list of models that were tried before the current chunk's model.
+  - `chunk.resumed_from_partial`: True if the stream resumed mid-way via prefill or user_turn.
+
+---
+
+## v0.7.0 — 2026-04-29
 
 ### ⚡ Performance — Embedding Batching
 

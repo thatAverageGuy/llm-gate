@@ -12,10 +12,36 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 
+from pydantic import BaseModel, Field, model_validator
+
+# ---------------------------------------------------------------------------
+# Streaming fallback strategy
+# ---------------------------------------------------------------------------
+
+StreamFallbackMode = Literal["restart", "prefill", "user_turn"]
+"""
+Controls how llmgate behaves when a streaming model fails mid-stream during
+fallback routing (i.e. when ``model`` is a list).
+
+``"restart"`` *(default)*
+    Safe and universal. On any failure the next model starts fresh with the
+    original messages. No partial text is carried forward.
+
+``"prefill"``
+    Buffer-and-resume via assistant prefill. Appends the partial text already
+    yielded as an ``{"role": "assistant"}`` message, so the fallback model
+    continues from that exact point. Only works with providers that support
+    prefill (Gemini, Groq, Mistral, Cohere, Ollama). For providers that don't
+    (OpenAI, Anthropic, Azure, Bedrock) llmgate automatically downgrades to
+    ``"user_turn"`` and emits a ``UserWarning``.
+
+``"user_turn"``
+    Like ``"prefill"`` but wraps the partial text in a ``user`` continuation
+    message. Works universally across all providers.
+"""
+
 if TYPE_CHECKING:
     pass
-
-from pydantic import BaseModel, Field, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -280,6 +306,22 @@ class StreamChunk(BaseModel):
     finish_reason: Optional[str] = None     # set on the final chunk
     index: int = 0
     usage: Optional[TokenUsage] = None      # populated on the last chunk by some providers
+
+    # Fallback observability fields — populated only during multi-model fallback streaming
+    fallback_attempts: list[str] = Field(default_factory=list)
+    """Models that were tried (and failed) before this chunk's model started streaming.
+
+    Populated on the **first chunk** from each model in the chain; empty list on all
+    subsequent chunks from the same model run.  When the primary model succeeded,
+    this is always ``[]``.
+    """
+
+    resumed_from_partial: bool = False
+    """``True`` on the **first chunk from a fallback model** that used ``"prefill"`` or
+    ``"user_turn"`` mode to resume mid-stream (i.e. the primary model had already yielded
+    some text before failing).  ``False`` in all other cases, including when the fallback
+    started fresh (``"restart"`` mode or pre-first-chunk failure).
+    """
 
 
 # ---------------------------------------------------------------------------

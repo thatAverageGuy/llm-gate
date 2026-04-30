@@ -255,6 +255,19 @@ resp.usage        # TokenUsage
 
 > Anthropic and Groq do not offer embedding APIs — they raise `EmbeddingsNotSupported`.
 
+**Provider-Specific Parameters:**
+
+llmgate natively supports advanced provider-specific optimization parameters:
+
+| Param | Providers | Description |
+|---|---|---|
+| `task_type` | Gemini | Optimization hint (e.g. `RETRIEVAL_DOCUMENT`, `RETRIEVAL_QUERY`) |
+| `title` | Gemini | Document title (improves quality when `task_type="RETRIEVAL_DOCUMENT"`) |
+| `input_type` | Cohere, Bedrock | Purpose hint: `search_document`, `search_query`, `classification`, `clustering` |
+| `truncate` | Cohere, Ollama | Overflow strategy — Cohere: `NONE`/`START`/`END`; Ollama: `true`/`false` |
+| `encoding_format` | OpenAI, Azure, Mistral | Output encoding: `float` or `base64` |
+| `user` | OpenAI, Azure | End-user identifier for abuse monitoring |
+
 ---
 
 ## Vision / Multimodal
@@ -471,7 +484,7 @@ except AllProvidersFailedError as e:
         print(f"  {model}: {exc}")
 ```
 
-> **Note:** `stream=True` cannot be combined with a model list — streaming fallback is planned for v0.7.
+> **Note:** `stream=True` works seamlessly with a model list. See the streaming documentation for details on fallback strategies (`stream_fallback_mode`).
 
 ---
 
@@ -568,6 +581,8 @@ These features are shipped ✅ or planned 🗓️:
 | **Batch completions** — parallel requests with concurrency control | ✅ v0.4 |
 | **Vision / multimodal** — image inputs (8 providers: URL + base64) | ✅ v0.5 |
 | **Fallback / routing** — multi-model chains, `AllProvidersFailedError` | ✅ v0.6 |
+| **Embedding Batching** — parallel/native provider batching | ✅ v0.7 |
+| **Streaming Fallback** — seamless mid-stream recovery (`stream_fallback_mode`) | ✅ v0.8 |
 | **Automatic tool-call loop** — orchestrate multi-step tool use | 🗓️ planned |
 | **Token counting** — local tokenisation before sending | 🗓️ planned |
 | **Prompt templates** — reusable, parameterised prompt builders | 🗓️ planned |

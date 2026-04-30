@@ -34,6 +34,9 @@ from llmgate.types import (
 class AzureOpenAIProvider(BaseProvider):
     name: ClassVar[str] = "azure"
     supported_model_prefixes: ClassVar[tuple[str, ...]] = ("azure/",)
+    # Same API surface as OpenAI; Azure adds an additional validation layer
+    # that can be even stricter about assistant-last message ordering.
+    supports_prefill: ClassVar[bool] = False
 
     def __init__(
         self,

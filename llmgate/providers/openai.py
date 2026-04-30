@@ -21,6 +21,10 @@ from llmgate.types import (
 class OpenAIProvider(BaseProvider):
     name: ClassVar[str] = "openai"
     supported_model_prefixes: ClassVar[tuple[str, ...]] = ("gpt-", "o1-", "o3-", "chatgpt-")
+    # OpenAI Chat Completions API does not officially support assistant prefill.
+    # The model may ignore, repeat, or restart from the prefill text.
+    # o1/o3 reasoning models especially ignore it due to internal CoT processing.
+    supports_prefill: ClassVar[bool] = False
 
     def __init__(self, api_key: str | None = None, **client_kwargs: Any) -> None:
         try:

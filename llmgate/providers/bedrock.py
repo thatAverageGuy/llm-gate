@@ -82,6 +82,9 @@ def _to_bedrock_messages(messages: list[Message]) -> tuple[list[dict], str | Non
 class BedrockProvider(BaseProvider):
     name: ClassVar[str] = "bedrock"
     supported_model_prefixes: ClassVar[tuple[str, ...]] = ("bedrock/",)
+    # The Bedrock Converse API enforces strict user/assistant alternation and
+    # raises ValidationException if the last message role is "assistant".
+    supports_prefill: ClassVar[bool] = False
 
     def __init__(
         self,

@@ -28,6 +28,9 @@ from llmgate.types import (
 class AnthropicProvider(BaseProvider):
     name: ClassVar[str] = "anthropic"
     supported_model_prefixes: ClassVar[tuple[str, ...]] = ("claude-",)
+    # Claude 4.6+ returns HTTP 400 when the last message role is "assistant".
+    # Claude ≤4.5 supported it, but we conservatively disable for all versions.
+    supports_prefill: ClassVar[bool] = False
 
     def __init__(self, api_key: str | None = None, **client_kwargs: Any) -> None:
         try:

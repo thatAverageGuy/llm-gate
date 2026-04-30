@@ -34,6 +34,12 @@ class BaseProvider(ABC):
     #: The registry calls ``supports()`` which checks these prefixes.
     supported_model_prefixes: ClassVar[tuple[str, ...]]
 
+    #: Whether this provider reliably handles an ``assistant`` role message as
+    #: the *last* entry in the message list (prefill / forced continuation).
+    #: Providers that block or silently ignore this pattern must set ``False``.
+    #: Used by the streaming fallback logic when ``stream_fallback_mode="prefill"``.
+    supports_prefill: ClassVar[bool] = True
+
     # -----------------------------------------------------------------------
     # Routing helper
     # -----------------------------------------------------------------------

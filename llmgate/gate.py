@@ -66,6 +66,24 @@ def _build_async_chain(
     return chain
 
 
+def _build_stream_sync_chain(middlewares: list[BaseMiddleware], inner: Any) -> Any:
+    """Compose ``stream_handle`` middlewares around ``inner`` (right-to-left)."""
+    chain = inner
+    for mw in reversed(middlewares):
+        _mw, _next = mw, chain
+        chain = lambda req, _mw=_mw, _next=_next: _mw.stream_handle(req, _next)  # noqa: E731
+    return chain
+
+
+def _build_stream_async_chain(middlewares: list[BaseMiddleware], inner: Any) -> Any:
+    """Compose ``astream_handle`` middlewares around ``inner`` (right-to-left)."""
+    chain = inner
+    for mw in reversed(middlewares):
+        _mw, _next = mw, chain
+        chain = lambda req, _mw=_mw, _next=_next: _mw.astream_handle(req, _next)  # noqa: E731
+    return chain
+
+
 class LLMGate:
     """
     A configured LLM gateway with a fixed middleware stack.
@@ -87,12 +105,16 @@ class LLMGate:
         middleware: list[BaseMiddleware] | None = None,
         fallback_chain: list[str] | None = None,
         fallback_on: tuple[type[Exception], ...] = _DEFAULT_FALLBACK_ON,
+        stream_fallback_mode: str = "restart",
+        stream_resume_prompt: str | None = None,
         **provider_defaults: Any,
     ) -> None:
         self._middleware: list[BaseMiddleware] = middleware or []
         self._defaults = provider_defaults
         self._fallback_chain = fallback_chain
         self._fallback_on = fallback_on
+        self._stream_fallback_mode = stream_fallback_mode
+        self._stream_resume_prompt = stream_resume_prompt
 
     # ------------------------------------------------------------------
     # Sync
@@ -141,24 +163,41 @@ class LLMGate:
 
     def stream(
         self,
-        model: str,
+        model: str | list[str],
         messages: list[dict[str, Any] | Message],
         **kwargs: Any,
     ) -> Iterator[StreamChunk]:
-        """Sync streaming with stream_handle middleware applied."""
+        """Sync streaming with fallback support.
+
+        When ``fallback_chain`` is set on this gate *or* ``model`` is a list,
+        streaming fallback is applied using ``stream_fallback_mode``.
+        """
         merged = {**self._defaults, **kwargs}
-        request = _build_request(model, messages, stream=True, kwargs=merged)
-        provider = _get_or_create_provider(model, merged.get("provider"))
+        effective_models = self._fallback_chain or (
+            model if isinstance(model, list) else [model]
+        )
+
+        if len(effective_models) > 1:
+            from llmgate.fallback import _try_models_stream_sync  # noqa: PLC0415
+            return _try_models_stream_sync(
+                effective_models,
+                messages,
+                fallback_on=self._fallback_on,
+                middleware=self._middleware or None,
+                mode=self._stream_fallback_mode,
+                stream_resume_prompt=self._stream_resume_prompt,
+                **merged,
+            )
+
+        # Single-model path
+        single_model = effective_models[0]
+        request = _build_request(single_model, messages, stream=True, kwargs=merged)
+        provider = _get_or_create_provider(single_model, merged.get("provider"))
 
         def _inner(req: CompletionRequest) -> Iterator[StreamChunk]:
             return provider.stream(req)
 
-        # Build stream chain
-        chain = _inner
-        for mw in reversed(self._middleware):
-            _mw, _next = mw, chain
-            chain = lambda req, _mw=_mw, _next=_next: _mw.stream_handle(req, _next)  # noqa: E731
-
+        chain = _build_stream_sync_chain(self._middleware, _inner) if self._middleware else _inner
         return chain(request)
 
     # ------------------------------------------------------------------
@@ -206,23 +245,43 @@ class LLMGate:
 
     async def astream(
         self,
-        model: str,
+        model: str | list[str],
         messages: list[dict[str, Any] | Message],
         **kwargs: Any,
     ) -> AsyncIterator[StreamChunk]:
-        """Async streaming with astream_handle middleware applied."""
+        """Async streaming with fallback support.
+
+        When ``fallback_chain`` is set on this gate *or* ``model`` is a list,
+        streaming fallback is applied using ``stream_fallback_mode``.
+        """
         merged = {**self._defaults, **kwargs}
-        request = _build_request(model, messages, stream=True, kwargs=merged)
-        provider = _get_or_create_provider(model, merged.get("provider"))
+        effective_models = self._fallback_chain or (
+            model if isinstance(model, list) else [model]
+        )
+
+        if len(effective_models) > 1:
+            from llmgate.fallback import _try_models_stream_async  # noqa: PLC0415
+            async for chunk in _try_models_stream_async(
+                effective_models,
+                messages,
+                fallback_on=self._fallback_on,
+                middleware=self._middleware or None,
+                mode=self._stream_fallback_mode,
+                stream_resume_prompt=self._stream_resume_prompt,
+                **merged,
+            ):
+                yield chunk
+            return
+
+        # Single-model path
+        single_model = effective_models[0]
+        request = _build_request(single_model, messages, stream=True, kwargs=merged)
+        provider = _get_or_create_provider(single_model, merged.get("provider"))
 
         async def _inner(req: CompletionRequest) -> AsyncIterator[StreamChunk]:
             return provider.astream(req)
 
-        chain = _inner
-        for mw in reversed(self._middleware):
-            _mw, _next = mw, chain
-            chain = lambda req, _mw=_mw, _next=_next: _mw.astream_handle(req, _next)  # noqa: E731
-
+        chain = _build_stream_async_chain(self._middleware, _inner) if self._middleware else _inner
         async for chunk in await chain(request):
             yield chunk
 

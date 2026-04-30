@@ -70,6 +70,26 @@ for chunk in gate.stream("claude-3-5-haiku-20241022", messages):
 
 ---
 
+## Streaming Fallback
+
+Streaming works seamlessly with model lists, providing mid-stream resilience out of the box:
+
+```python
+resp = completion(
+    model=["gpt-4o-mini", "groq/llama-3.1-8b-instant", "gemini-2.0-flash"],
+    messages=messages,
+    stream=True,
+    stream_fallback_mode="prefill", # Strategies: "restart", "prefill", "user_turn"
+)
+
+for chunk in resp:
+    print(chunk.delta, end="", flush=True)
+```
+
+See the [Fallback Routing](./fallback.md#streaming) guide for details on the different mid-stream recovery strategies (`restart`, `prefill`, and `user_turn`) and observability metadata.
+
+---
+
 !!! warning "Incompatibility"
     `stream=True` and `response_format=` (structured outputs) cannot be used together.
     Streaming returns raw incremental text; structured outputs require the complete response for Pydantic validation.

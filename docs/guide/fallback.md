@@ -197,17 +197,40 @@ except AllProvidersFailedError as e:
 
 ## Streaming
 
-!!! warning "Not supported with model lists"
-    `stream=True` cannot be combined with a model list. Streaming fallback is planned for v0.7.
+Streaming (`stream=True`) is fully supported with model lists and fallback chains. When a failure occurs mid-stream, llmgate dynamically recovers the stream using one of three `stream_fallback_mode` strategies:
 
-    ```python
-    # ❌ raises ValueError
-    completion(model=["gpt-4o-mini", "groq/llama-3.1-8b-instant"], messages=messages, stream=True)
+```python
+from llmgate import completion
 
-    # ✓ streaming works normally with a single model
-    for chunk in completion("gpt-4o-mini", messages, stream=True):
-        print(chunk.delta, end="")
-    ```
+resp = completion(
+    model=["gpt-4o-mini", "groq/llama-3.1-8b-instant", "gemini-2.0-flash"],
+    messages=messages,
+    stream=True,
+    stream_fallback_mode="prefill",  # "restart" | "prefill" | "user_turn"
+)
+
+for chunk in resp:
+    print(chunk.delta, end="")
+```
+
+### Strategies
+
+1. **`"restart"` (Default)**
+   Safe and universal. On any failure, the fallback model starts fresh with the original messages. No partial text is carried forward.
+2. **`"prefill"`**
+   Buffer-and-resume. The partial text already yielded is appended as a trailing `{"role": "assistant"}` message. The fallback model natively continues the generation from that exact point. Supported natively by Gemini, Groq, Mistral, Cohere, and Ollama.
+   *(Note: If the fallback provider does not support assistant prefilling, llmgate automatically downgrades to `"user_turn"` and emits a warning).*
+3. **`"user_turn"`**
+   Wraps the partial text in an assistant message, followed by a user prompt to continue (e.g., "Continue from exactly where you left off"). Works universally across all providers without risking API schema rejection.
+
+### Observability
+
+Streaming chunks include observability metadata, so you know exactly what is happening mid-stream:
+
+```python
+chunk.fallback_attempts     # list[str] - Models tried before this chunk's model
+chunk.resumed_from_partial  # bool      - True if the stream resumed via prefill/user_turn
+```
 
 ---
 

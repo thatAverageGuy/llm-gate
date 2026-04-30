@@ -210,5 +210,6 @@ __marimo__/
 .claude/
 CLAUDE.md
 PLAN.md
+llmgate_roadmap.md
 # MkDocs build output
 site/

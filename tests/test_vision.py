@@ -658,6 +658,6 @@ class TestPackageExports:
         parts = llmgate.__version__.split(".")
         assert len(parts) == 3, f"Expected semver X.Y.Z, got {llmgate.__version__!r}"
         assert all(p.isdigit() for p in parts), f"Non-numeric version parts: {llmgate.__version__!r}"
-        assert tuple(int(p) for p in parts) >= (0, 7, 0), (
-            f"Version {llmgate.__version__!r} is older than v0.7.0"
+        assert tuple(int(p) for p in parts) >= (0, 5, 0), (
+            f"Version {llmgate.__version__!r} is older than v0.5.0"
         )

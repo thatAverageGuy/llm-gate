@@ -19,6 +19,8 @@ resp = completion(
     tool_choice=None,       # str | dict | None
     response_format=None,   # type[BaseModel] | None
     middleware=None,        # list[BaseMiddleware] | None
+    stream_fallback_mode="restart",   # "restart" | "prefill" | "user_turn"
+    stream_resume_prompt=None,        # str | None
     **extra_kwargs,
 ) -> CompletionResponse | Iterator[StreamChunk]
 ```
@@ -142,6 +144,22 @@ class CompletionResponse(BaseModel):
     raw: Any   # raw SDK response
     text: str  # property → choices[0].message.content
     tool_calls: list[ToolCall] | None  # property
+    fallback_attempts: list[str]
+```
+
+### `StreamChunk`
+
+```python
+class StreamChunk(BaseModel):
+    id: str
+    model: str
+    provider: str
+    delta: str
+    finish_reason: str | None
+    index: int
+    usage: TokenUsage | None
+    fallback_attempts: list[str]
+    resumed_from_partial: bool
 ```
 
 ### `EmbeddingResponse`

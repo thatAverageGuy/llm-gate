@@ -216,9 +216,25 @@ class TestCompletionFallbackList:
                 completion(["a", "b", "c"], MESSAGES)
             assert len(exc_info.value.errors) == 3
 
-    def test_stream_true_with_list_raises_value_error(self):
-        with pytest.raises(ValueError, match="stream=True cannot be used with a model list"):
-            completion(["gpt-4o-mini", "groq/llama-3.1-8b-instant"], MESSAGES, stream=True)
+    def test_stream_true_with_list_now_works(self):
+        """stream=True + model list no longer raises ValueError; uses stream fallback."""
+        from llmgate.types import StreamChunk
+
+        def fake_stream():
+            yield StreamChunk(id="c1", model="gpt-4o-mini", provider="openai", delta="hi")
+
+        prov = MagicMock()
+        prov.name = "openai"
+        prov.supports_prefill = False
+        prov.stream.return_value = fake_stream()
+
+        with patch("llmgate.fallback._get_provider", return_value=prov), \
+             patch("llmgate.fallback._build_request", return_value=MagicMock()):
+            _clear_cache()
+            it = completion(["gpt-4o-mini", "groq/llama-3.1-8b-instant"], MESSAGES, stream=True)
+            chunks = list(it)
+        assert len(chunks) >= 1
+        assert chunks[0].delta == "hi"
 
     def test_custom_fallback_on_excludes_auth_error(self):
         """Custom fallback_on=(RateLimitError,) does NOT fall back on AuthError."""
@@ -282,11 +298,29 @@ class TestACompletionFallback:
                 await acompletion(["gpt-4o-mini", "groq/llama-3.1-8b-instant"], MESSAGES)
 
     @pytest.mark.asyncio
-    async def test_async_stream_with_list_raises(self):
-        with pytest.raises(ValueError, match="stream=True cannot be used with a model list"):
-            await acompletion(
+    async def test_async_stream_with_list_now_works(self):
+        """acompletion stream=True + model list no longer raises ValueError."""
+        from llmgate.types import StreamChunk
+
+        async def fake_astream():
+            yield StreamChunk(id="c1", model="gpt-4o-mini", provider="openai", delta="async hi")
+
+        prov = MagicMock()
+        prov.name = "openai"
+        prov.supports_prefill = False
+        prov.astream.return_value = fake_astream()
+
+        with patch("llmgate.fallback._get_provider", return_value=prov), \
+             patch("llmgate.fallback._build_request", return_value=MagicMock()):
+            _clear_cache()
+            it = await acompletion(
                 ["gpt-4o-mini", "groq/llama-3.1-8b-instant"], MESSAGES, stream=True
             )
+            chunks = []
+            async for chunk in it:
+                chunks.append(chunk)
+        assert len(chunks) >= 1
+        assert chunks[0].delta == "async hi"
 
 
 # ---------------------------------------------------------------------------
