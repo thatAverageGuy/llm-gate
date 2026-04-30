@@ -585,6 +585,7 @@ These features are shipped ✅ or planned 🗓️:
 | **Fallback / routing** — multi-model chains, `AllProvidersFailedError` | ✅ v0.6 |
 | **Embedding Batching** — parallel/native provider batching | ✅ v0.7 |
 | **Streaming Fallback** — seamless mid-stream recovery (`stream_fallback_mode`) | ✅ v0.8 |
+| **Embedding Middleware** — fully supported middleware chain for embeddings | ✅ v0.8.1 |
 | **Automatic tool-call loop** — orchestrate multi-step tool use | 🗓️ planned |
 | **Token counting** — local tokenisation before sending | 🗓️ planned |
 | **Prompt templates** — reusable, parameterised prompt builders | 🗓️ planned |
