@@ -67,7 +67,7 @@ def _embed_openai(
         raise ImportError("openai package required: pip install openai") from e
 
     if azure_endpoint:
-        client = openai.AzureOpenAI(
+        client: Any = openai.AzureOpenAI(
             api_key=api_key or os.environ.get("AZURE_OPENAI_API_KEY"),
             azure_endpoint=azure_endpoint,
             api_version=api_version
@@ -95,10 +95,12 @@ def _embed_openai(
     except Exception as exc:
         raise ProviderAPIError(str(exc), provider=provider_name) from exc
 
-    embeddings = [item.embedding for item in sorted(raw.data, key=lambda x: x.index)]
+    embeddings = [
+        (item.embedding or []) for item in sorted(raw.data, key=lambda x: x.index or 0)
+    ]
     usage = TokenUsage(
-        prompt_tokens=raw.usage.prompt_tokens if raw.usage else 0,
-        total_tokens=raw.usage.total_tokens if raw.usage else 0,
+        prompt_tokens=raw.usage.prompt_tokens or 0 if raw.usage else 0,
+        total_tokens=raw.usage.total_tokens or 0 if raw.usage else 0,
     )
     return EmbeddingResponse(
         model=request.model,
@@ -122,7 +124,7 @@ async def _aembed_openai(
         raise ImportError("openai package required: pip install openai") from e
 
     if azure_endpoint:
-        client = openai.AsyncAzureOpenAI(
+        client: Any = openai.AsyncAzureOpenAI(
             api_key=api_key or os.environ.get("AZURE_OPENAI_API_KEY"),
             azure_endpoint=azure_endpoint,
             api_version=api_version
@@ -150,10 +152,12 @@ async def _aembed_openai(
     except Exception as exc:
         raise ProviderAPIError(str(exc), provider=provider_name) from exc
 
-    embeddings = [item.embedding for item in sorted(raw.data, key=lambda x: x.index)]
+    embeddings = [
+        (item.embedding or []) for item in sorted(raw.data, key=lambda x: x.index or 0)
+    ]
     usage = TokenUsage(
-        prompt_tokens=raw.usage.prompt_tokens if raw.usage else 0,
-        total_tokens=raw.usage.total_tokens if raw.usage else 0,
+        prompt_tokens=raw.usage.prompt_tokens or 0 if raw.usage else 0,
+        total_tokens=raw.usage.total_tokens or 0 if raw.usage else 0,
     )
     return EmbeddingResponse(
         model=request.model,
@@ -183,9 +187,14 @@ def _embed_gemini(request: EmbeddingRequest, api_key: str | None) -> EmbeddingRe
     if model_name.startswith("gemini/"):
         model_name = model_name[len("gemini/") :]
 
-    # TRUE BATCH: pass all inputs in a single call (contents accepts a list)
-    inputs = request.input if isinstance(request.input, list) else [request.input]
-
+    # TRUE BATCH: pass all inputs in a single call.
+    # In google-genai >= 1.74.0, passing list[str] concatenates strings into a single embedding.
+    # We must explicitly wrap each chunk in a Content object to trigger batchEmbedContents.
+    _raw_inputs = request.input if isinstance(request.input, list) else [request.input]
+    contents = [
+        genai_types.Content(parts=[genai_types.Part.from_text(text=chunk)])
+        for chunk in _raw_inputs
+    ]
     # Build EmbedContentConfig with all supported options
     config_kwargs: dict[str, Any] = {}
     if request.dimensions is not None:
@@ -201,7 +210,7 @@ def _embed_gemini(request: EmbeddingRequest, api_key: str | None) -> EmbeddingRe
     )
 
     try:
-        call_kwargs: dict[str, Any] = {"model": model_name, "contents": inputs}
+        call_kwargs: dict[str, Any] = {"model": model_name, "contents": contents}
         if embed_config is not None:
             call_kwargs["config"] = embed_config
         raw = client.models.embed_content(**call_kwargs)
@@ -209,7 +218,7 @@ def _embed_gemini(request: EmbeddingRequest, api_key: str | None) -> EmbeddingRe
         raise ProviderAPIError(str(exc), provider="gemini") from exc
 
     # raw.embeddings is always list[ContentEmbedding]; each has .values: list[float]
-    all_embeddings: list[list[float]] = [list(emb.values) for emb in raw.embeddings]
+    all_embeddings: list[list[float]] = [list(emb.values) for emb in raw.embeddings]  # type: ignore
 
     # Usage metadata: token count available on newer models
     total_tokens = 0
@@ -286,10 +295,10 @@ def _embed_cohere(request: EmbeddingRequest, api_key: str | None) -> EmbeddingRe
         provider="cohere",
         embeddings=[list(e) for e in emb_data],
         usage=TokenUsage(
-            prompt_tokens=getattr(raw.meta.billed_units, "input_tokens", 0)
+            prompt_tokens=getattr(raw.meta.billed_units, "input_tokens", 0)  # type: ignore
             if getattr(raw, "meta", None)
             else 0,
-            total_tokens=getattr(raw.meta.billed_units, "input_tokens", 0)
+            total_tokens=getattr(raw.meta.billed_units, "input_tokens", 0)  # type: ignore
             if getattr(raw, "meta", None)
             else 0,
         ),
@@ -308,7 +317,7 @@ async def _aembed_cohere(
 
 def _embed_mistral(request: EmbeddingRequest, api_key: str | None) -> EmbeddingResponse:
     try:
-        from mistralai import Mistral  # noqa: PLC0415
+        from mistralai.client import Mistral  # noqa: PLC0415
     except ImportError as e:
         raise ImportError("mistralai package required: pip install mistralai") from e
 
@@ -334,15 +343,17 @@ def _embed_mistral(request: EmbeddingRequest, api_key: str | None) -> EmbeddingR
     except Exception as exc:
         raise ProviderAPIError(str(exc), provider="mistral") from exc
 
-    embeddings = [item.embedding for item in sorted(raw.data, key=lambda x: x.index)]
+    embeddings = [
+        (item.embedding or []) for item in sorted(raw.data, key=lambda x: x.index or 0)
+    ]
     usage = raw.usage
     return EmbeddingResponse(
         model=request.model,
         provider="mistral",
         embeddings=embeddings,
         usage=TokenUsage(
-            prompt_tokens=usage.prompt_tokens if usage else 0,
-            total_tokens=usage.total_tokens if usage else 0,
+            prompt_tokens=usage.prompt_tokens if usage else 0,  # type: ignore
+            total_tokens=usage.total_tokens if usage else 0,  # type: ignore
         ),
         raw=raw,
     )
@@ -412,7 +423,7 @@ def _embed_bedrock(request: EmbeddingRequest, api_key: str | None) -> EmbeddingR
     import json as _json  # noqa: PLC0415
 
     try:
-        import boto3  # noqa: PLC0415
+        import boto3  # type: ignore[import-untyped]
     except ImportError as e:
         raise ImportError("boto3 required: pip install llmgate[bedrock]") from e
 

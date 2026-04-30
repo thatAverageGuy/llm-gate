@@ -186,7 +186,12 @@ class AzureOpenAIProvider(BaseProvider):
         if response_format is not None and choices:
             from llmgate.structured import validate_parsed  # noqa: PLC0415
 
-            parsed = validate_parsed(choices[0].message.content, response_format)
+            parsed = validate_parsed(
+                choices[0].message.content
+                if isinstance(choices[0].message.content, str)
+                else None,
+                response_format,
+            )
         return CompletionResponse(
             id=raw.id,
             model=model,
@@ -229,7 +234,12 @@ class AzureOpenAIProvider(BaseProvider):
             ) as streamer:
                 for chunk in streamer:
                     if chunk.choices and chunk.choices[0].delta.content:
-                        yield StreamChunk(delta=chunk.choices[0].delta.content)
+                        yield StreamChunk(
+                            id=chunk.id or "chunk",
+                            model=request.model,
+                            provider=self.name,
+                            delta=chunk.choices[0].delta.content,
+                        )
         except Exception as exc:
             self._wrap_exception(exc)
 
@@ -241,7 +251,12 @@ class AzureOpenAIProvider(BaseProvider):
             ) as streamer:
                 async for chunk in streamer:
                     if chunk.choices and chunk.choices[0].delta.content:
-                        yield StreamChunk(delta=chunk.choices[0].delta.content)
+                        yield StreamChunk(
+                            id=chunk.id or "chunk",
+                            model=request.model,
+                            provider=self.name,
+                            delta=chunk.choices[0].delta.content,
+                        )
         except Exception as exc:
             self._wrap_exception(exc)
 

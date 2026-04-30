@@ -63,7 +63,11 @@ def _build_sync_chain(
     for mw in reversed(middlewares):
         # Capture mw and next_call in closure
         _mw, _next = mw, chain
-        chain = lambda req, _mw=_mw, _next=_next: _mw.handle(req, _next)  # noqa: E731
+
+        def _step(req: Any, mw: Any = _mw, nxt: Any = _next) -> Any:
+            return mw.handle(req, nxt)
+
+        chain = _step
     return chain
 
 
@@ -74,7 +78,11 @@ def _build_async_chain(
     chain = inner
     for mw in reversed(middlewares):
         _mw, _next = mw, chain
-        chain = lambda req, _mw=_mw, _next=_next: _mw.ahandle(req, _next)  # noqa: E731
+
+        async def _step(req: Any, mw: Any = _mw, nxt: Any = _next) -> Any:
+            return await mw.ahandle(req, nxt)
+
+        chain = _step
     return chain
 
 
@@ -103,7 +111,11 @@ def _build_embed_sync_chain(
     chain = inner
     for mw in reversed(middlewares):
         _mw, _next = mw, chain
-        chain = lambda req, _mw=_mw, _next=_next: _mw.embed_handle(req, _next)  # noqa: E731
+
+        def _step(req: Any, mw: Any = _mw, nxt: Any = _next) -> Any:
+            return mw.embed_handle(req, nxt)
+
+        chain = _step
     return chain
 
 
@@ -114,7 +126,11 @@ def _build_embed_async_chain(
     chain = inner
     for mw in reversed(middlewares):
         _mw, _next = mw, chain
-        chain = lambda req, _mw=_mw, _next=_next: _mw.aembed_handle(req, _next)  # noqa: E731
+
+        async def _step(req: Any, mw: Any = _mw, nxt: Any = _next) -> Any:
+            return await mw.aembed_handle(req, nxt)
+
+        chain = _step
     return chain
 
 

@@ -203,7 +203,8 @@ class TestGeminiEmbeddings:
             resp = embed("gemini/text-embedding-004", ["a", "b", "c"])
         mock_client.models.embed_content.assert_called_once()
         call_kwargs = mock_client.models.embed_content.call_args.kwargs
-        assert call_kwargs["contents"] == ["a", "b", "c"]
+        assert len(call_kwargs["contents"]) == 3
+        assert call_kwargs["contents"][0].parts[0].text == "a"
         assert len(resp.embeddings) == 3
 
     def test_task_type_in_config(self):

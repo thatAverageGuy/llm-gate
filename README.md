@@ -200,7 +200,7 @@ movie: Movie = resp.parsed
 movie = parse("gemini-2.5-flash-lite", messages, response_format=Movie)
 
 # Async
-movie = await aparse("claude-3-5-haiku-20241022", messages, response_format=Movie)
+movie = await aparse("claude-haiku-4-5-20251001", messages, response_format=Movie)
 ```
 
 **Provider strategies:**
@@ -232,7 +232,7 @@ resp = embed("text-embedding-3-small", ["Hello", "world"])
 vectors: list[list[float]] = resp.embeddings
 
 # Other providers
-resp = embed("gemini/text-embedding-004", "Hello")
+resp = embed("gemini/gemini-embedding-2", "Hello")
 resp = embed("cohere/embed-english-v3.0", "Hello")
 resp = embed("mistral/mistral-embed", "Hello")
 resp = embed("ollama/nomic-embed-text", "Hello")
@@ -586,6 +586,7 @@ These features are shipped ✅ or planned 🗓️:
 | **Embedding Batching** — parallel/native provider batching | ✅ v0.7 |
 | **Streaming Fallback** — seamless mid-stream recovery (`stream_fallback_mode`) | ✅ v0.8 |
 | **Embedding Middleware** — fully supported middleware chain for embeddings | ✅ v0.8.1 |
+| **Strict Dependencies & Fixes** — google-genai 1.74.0 batching fix & exact dependency pinning | ✅ v0.8.2 |
 | **Automatic tool-call loop** — orchestrate multi-step tool use | 🗓️ planned |
 | **Token counting** — local tokenisation before sending | 🗓️ planned |
 | **Prompt templates** — reusable, parameterised prompt builders | 🗓️ planned |

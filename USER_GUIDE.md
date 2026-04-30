@@ -145,7 +145,7 @@ print(response.text)
 
 ```python
 response = completion(
-    model="claude-3-5-sonnet-20241022",
+    model="claude-3-7-sonnet-latest",
     messages=[
         {"role": "system", "content": "You are concise."},
         {"role": "user",   "content": "Explain recursion."},
@@ -173,7 +173,7 @@ response = completion(
 
 # Anthropic: pass top_k
 response = completion(
-    "claude-3-haiku-20240307",
+    "claude-haiku-4-5-20251001",
     messages,
     top_k=40,
 )
@@ -198,7 +198,7 @@ response = completion(
 
 ```python
 # System message is handled transparently:
-response = completion("claude-3-5-sonnet-20241022", [
+response = completion("claude-3-7-sonnet-latest", [
     {"role": "system", "content": "Be brief."},
     {"role": "user",   "content": "What is Python?"},
 ])
@@ -248,7 +248,7 @@ from llmgate import acompletion
 async def compare_models(prompt: str):
     tasks = [
         acompletion("gpt-4o-mini",               [{"role": "user", "content": prompt}]),
-        acompletion("claude-3-haiku-20240307",    [{"role": "user", "content": prompt}]),
+        acompletion("claude-haiku-4-5-20251001",    [{"role": "user", "content": prompt}]),
         acompletion("gemini-2.5-flash-lite",      [{"role": "user", "content": prompt}]),
         acompletion("groq/llama-3.1-8b-instant",  [{"role": "user", "content": prompt}]),
     ]
@@ -298,7 +298,7 @@ response = embed("text-embedding-3-small", "Hello world")
 vector = response.embeddings[0]
 
 # Batch embedding (list of strings)
-response = embed("gemini/text-embedding-004", ["Hello", "World"])
+response = embed("gemini/gemini-embedding-2", ["Hello", "World"])
 vectors = response.embeddings  # list[list[float]]
 
 # Async

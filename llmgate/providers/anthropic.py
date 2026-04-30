@@ -209,7 +209,9 @@ class AnthropicProvider(BaseProvider):
         if response_format is not None and content:
             from llmgate.structured import validate_parsed  # noqa: PLC0415
 
-            parsed = validate_parsed(content, response_format)
+            parsed = validate_parsed(
+                content if isinstance(content, str) else None, response_format
+            )
         return CompletionResponse(
             id=raw.id,
             model=model,

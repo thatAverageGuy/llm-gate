@@ -134,7 +134,12 @@ class MistralProvider(BaseProvider):
         if response_format is not None and choices:
             from llmgate.structured import validate_parsed  # noqa: PLC0415
 
-            parsed = validate_parsed(choices[0].message.content, response_format)
+            parsed = validate_parsed(
+                choices[0].message.content
+                if isinstance(choices[0].message.content, str)
+                else None,
+                response_format,
+            )
         return CompletionResponse(
             id=raw.id,
             model=model,
@@ -172,22 +177,32 @@ class MistralProvider(BaseProvider):
     def stream(self, request: CompletionRequest) -> Iterator[StreamChunk]:
         params = self._build_params(request)
         try:
-            with self._client.chat.stream(**params) as streamer:
-                for event in streamer:
-                    delta = event.data.choices[0].delta if event.data.choices else None
-                    if delta and delta.content:
-                        yield StreamChunk(delta=delta.content)
+            streamer = self._client.chat.stream(**params)
+            for event in streamer:
+                delta = event.data.choices[0].delta if event.data.choices else None
+                if delta and delta.content:
+                    yield StreamChunk(
+                        id=event.data.id or "chunk",
+                        model=request.model,
+                        provider=self.name,
+                        delta=delta.content,
+                    )
         except Exception as exc:
             self._wrap_exception(exc)
 
     async def astream(self, request: CompletionRequest) -> AsyncIterator[StreamChunk]:
         params = self._build_params(request)
         try:
-            async with self._client.chat.stream_async(**params) as streamer:
-                async for event in streamer:
-                    delta = event.data.choices[0].delta if event.data.choices else None
-                    if delta and delta.content:
-                        yield StreamChunk(delta=delta.content)
+            streamer = await self._client.chat.stream_async(**params)
+            async for event in streamer:
+                delta = event.data.choices[0].delta if event.data.choices else None
+                if delta and delta.content:
+                    yield StreamChunk(
+                        id=event.data.id or "chunk",
+                        model=request.model,
+                        provider=self.name,
+                        delta=delta.content,
+                    )
         except Exception as exc:
             self._wrap_exception(exc)
 

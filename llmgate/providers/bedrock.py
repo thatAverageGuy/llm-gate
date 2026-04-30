@@ -114,7 +114,7 @@ class BedrockProvider(BaseProvider):
         **client_kwargs: Any,
     ) -> None:
         try:
-            import boto3  # noqa: PLC0415
+            import boto3  # type: ignore[import-untyped]  # noqa: PLC0415
         except ImportError as e:
             raise ImportError(
                 "boto3 package is required: pip install llmgate[bedrock]"
@@ -230,7 +230,9 @@ class BedrockProvider(BaseProvider):
         if response_format is not None and text:
             from llmgate.structured import validate_parsed  # noqa: PLC0415
 
-            parsed = validate_parsed(text, response_format)
+            parsed = validate_parsed(
+                text if isinstance(text, str) else None, response_format
+            )
         return CompletionResponse(
             id=raw.get("ResponseMetadata", {}).get("RequestId", ""),
             model=model,
@@ -281,7 +283,12 @@ class BedrockProvider(BaseProvider):
                 if "contentBlockDelta" in event:
                     delta = event["contentBlockDelta"].get("delta", {})
                     if "text" in delta:
-                        yield StreamChunk(delta=delta["text"])
+                        yield StreamChunk(
+                            id="chunk",
+                            model=request.model,
+                            provider=self.name,
+                            delta=delta["text"],
+                        )
         except Exception as exc:
             self._wrap_exception(exc)
 

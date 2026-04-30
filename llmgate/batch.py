@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -39,7 +40,7 @@ from llmgate.types import BatchError, BatchResult, CompletionRequest, Message
 
 
 def _normalise_requests(
-    requests: list[CompletionRequest | dict[str, Any]],
+    requests: Sequence[CompletionRequest | dict[str, Any]],
 ) -> list[CompletionRequest]:
     """Coerce plain dicts to CompletionRequest objects."""
     normalised: list[CompletionRequest] = []
@@ -57,7 +58,7 @@ def _normalise_requests(
 
 
 def _make_batch_result(
-    results: list[CompletionRequest | None],
+    results: list[Any],
     errors: list[BatchError],
     normalised: list[CompletionRequest],
 ) -> BatchResult:
@@ -85,7 +86,7 @@ def _make_batch_result(
 
 
 def batch(
-    requests: list[CompletionRequest | dict[str, Any]],
+    requests: Sequence[CompletionRequest | dict[str, Any]],
     *,
     max_concurrency: int = 5,
     fail_fast: bool = False,
@@ -126,9 +127,9 @@ def batch(
 
     def _run_one(idx: int, req: CompletionRequest) -> tuple[int, Any, Exception | None]:
         try:
-            resp = completion(
+            resp = completion(  # type: ignore
                 req.model,
-                req.messages,
+                req.messages,  # type: ignore
                 middleware=middleware,
                 max_tokens=req.max_tokens,
                 temperature=req.temperature,
@@ -186,7 +187,7 @@ def batch(
 
 
 async def abatch(
-    requests: list[CompletionRequest | dict[str, Any]],
+    requests: Sequence[CompletionRequest | dict[str, Any]],
     *,
     max_concurrency: int = 5,
     fail_fast: bool = False,
@@ -223,9 +224,9 @@ async def abatch(
     ) -> tuple[int, Any, Exception | None]:
         async with semaphore:
             try:
-                coro = acompletion(
+                coro = acompletion(  # type: ignore
                     req.model,
-                    req.messages,
+                    req.messages,  # type: ignore
                     middleware=middleware,
                     max_tokens=req.max_tokens,
                     temperature=req.temperature,

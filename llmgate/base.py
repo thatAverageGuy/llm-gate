@@ -68,7 +68,7 @@ class BaseProvider(ABC):
         """Yield streamed chunks synchronously."""
 
     @abstractmethod
-    async def astream(self, request: CompletionRequest) -> AsyncIterator[StreamChunk]:
+    def astream(self, request: CompletionRequest) -> AsyncIterator[StreamChunk]:
         """Yield streamed chunks asynchronously."""
 
     # -----------------------------------------------------------------------

@@ -52,13 +52,13 @@ def _to_cohere_messages(
     non_system = []
     for m in messages:
         if m.role == "system":
-            preamble_parts.append(m.content or "")
+            preamble_parts.append(m.content or "")  # type: ignore
         else:
             non_system.append(m)
 
     for i, m in enumerate(non_system):
         if i == len(non_system) - 1 and m.role == "user":
-            current_message = m.content or ""
+            current_message = m.content or ""  # type: ignore
         elif m.role == "user":
             history.append({"role": "USER", "message": m.content or ""})
         elif m.role == "assistant":
@@ -93,7 +93,7 @@ def _to_cohere_messages(
                 }
             )
 
-    return (
+    return (  # type: ignore
         current_message,
         history,
         "\n\n".join(preamble_parts) if preamble_parts else None,
@@ -151,7 +151,7 @@ class CohereProvider(BaseProvider):
                     {
                         "role": "assistant",
                         "tool_calls": [
-                            {
+                            {  # type: ignore
                                 "id": tc.id,
                                 "type": "function",
                                 "function": {
@@ -248,7 +248,9 @@ class CohereProvider(BaseProvider):
         if response_format is not None and text_content:
             from llmgate.structured import validate_parsed  # noqa: PLC0415
 
-            parsed = validate_parsed(text_content, response_format)
+            parsed = validate_parsed(
+                text_content if isinstance(text_content, str) else None, response_format
+            )
         return CompletionResponse(
             id=getattr(raw, "id", ""),
             model=model,
@@ -297,7 +299,12 @@ class CohereProvider(BaseProvider):
                     if text and hasattr(text, "content"):
                         for block in text.content or []:
                             if hasattr(block, "text") and block.text:
-                                yield StreamChunk(delta=block.text)
+                                yield StreamChunk(
+                                    id=getattr(event, "id", "chunk") or "chunk",
+                                    model=request.model,
+                                    provider=self.name,
+                                    delta=block.text,
+                                )
         except Exception as exc:
             self._wrap_exception(exc)
 
@@ -310,7 +317,12 @@ class CohereProvider(BaseProvider):
                     if text and hasattr(text, "content"):
                         for block in text.content or []:
                             if hasattr(block, "text") and block.text:
-                                yield StreamChunk(delta=block.text)
+                                yield StreamChunk(
+                                    id=getattr(event, "id", "chunk") or "chunk",
+                                    model=request.model,
+                                    provider=self.name,
+                                    delta=block.text,
+                                )
         except Exception as exc:
             self._wrap_exception(exc)
 

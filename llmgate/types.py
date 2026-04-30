@@ -281,7 +281,8 @@ class CompletionResponse(BaseModel):
         """Return the content of the first choice (empty string if tool-only response)."""
         if not self.choices:
             return ""
-        return self.choices[0].message.content or ""
+        c = self.choices[0].message.content
+        return c if isinstance(c, str) else ""
 
     @property
     def tool_calls(self) -> list[ToolCall]:

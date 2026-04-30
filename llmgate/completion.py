@@ -194,7 +194,7 @@ _get_or_create_provider = _get_provider
 
 
 def _normalise_messages(messages: list[dict[str, str] | Message]) -> list[Message]:
-    return [Message(**m) if isinstance(m, dict) else m for m in messages]
+    return [Message(**m) if isinstance(m, dict) else m for m in messages]  # type: ignore
 
 
 def _build_request(

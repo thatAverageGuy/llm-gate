@@ -102,15 +102,15 @@ class GeminiProvider(BaseProvider):
                 continue
 
             if msg.role == "assistant":
-                parts: list[Any] = []
+                assistant_parts: list[Any] = []
                 if msg.content:
                     if isinstance(msg.content, str):
-                        parts.append({"text": msg.content})
+                        assistant_parts.append({"text": msg.content})
                     else:
-                        parts.extend(vision.to_gemini_parts(msg.content))
+                        assistant_parts.extend(vision.to_gemini_parts(msg.content))
                 if msg.tool_calls:
                     for tc in msg.tool_calls:
-                        parts.append(
+                        assistant_parts.append(
                             {
                                 "function_call": {
                                     "name": tc.function,
@@ -118,7 +118,7 @@ class GeminiProvider(BaseProvider):
                                 }
                             }
                         )
-                contents.append({"role": "model", "parts": parts})
+                contents.append({"role": "model", "assistant_parts": assistant_parts})
                 continue
 
             if msg.role == "tool":
@@ -126,7 +126,7 @@ class GeminiProvider(BaseProvider):
                 try:
                     import json as _json  # noqa: PLC0415
 
-                    result_data = _json.loads(msg.content or "{}")
+                    result_data = _json.loads(msg.content or "{}")  # type: ignore
                     if not isinstance(result_data, dict):
                         result_data = {"result": result_data}
                 except Exception:  # noqa: BLE001
@@ -207,7 +207,9 @@ class GeminiProvider(BaseProvider):
         if response_format is not None and text:
             from llmgate.structured import validate_parsed  # noqa: PLC0415
 
-            parsed = validate_parsed(text, response_format)
+            parsed = validate_parsed(
+                text if isinstance(text, str) else None, response_format
+            )
 
         return CompletionResponse(
             id=str(uuid.uuid4()),
@@ -256,7 +258,7 @@ class GeminiProvider(BaseProvider):
             raw = self._client.models.generate_content(
                 model=request.model,
                 contents=contents,
-                config=self._make_full_config(request, system_instruction),
+                config=self._make_full_config(request, system_instruction),  # type: ignore
             )
         except Exception as exc:  # noqa: BLE001
             self._handle_error(exc)
@@ -268,7 +270,7 @@ class GeminiProvider(BaseProvider):
             raw = await self._client.aio.models.generate_content(
                 model=request.model,
                 contents=contents,
-                config=self._make_full_config(request, system_instruction),
+                config=self._make_full_config(request, system_instruction),  # type: ignore
             )
         except Exception as exc:  # noqa: BLE001
             self._handle_error(exc)
@@ -281,13 +283,13 @@ class GeminiProvider(BaseProvider):
             for chunk in self._client.models.generate_content_stream(
                 model=request.model,
                 contents=contents,
-                config=self._make_full_config(request, system_instruction),
+                config=self._make_full_config(request, system_instruction),  # type: ignore
             ):
                 text = getattr(chunk, "text", None) or ""
                 if text:
                     finish_reason = None
                     if getattr(chunk, "candidates", None):
-                        finish_reason = str(chunk.candidates[0].finish_reason)
+                        finish_reason = str(chunk.candidates[0].finish_reason)  # type: ignore
                     yield StreamChunk(
                         id=chunk_id,
                         model=request.model,
@@ -305,13 +307,13 @@ class GeminiProvider(BaseProvider):
             async for chunk in await self._client.aio.models.generate_content_stream(
                 model=request.model,
                 contents=contents,
-                config=self._make_full_config(request, system_instruction),
+                config=self._make_full_config(request, system_instruction),  # type: ignore
             ):
                 text = getattr(chunk, "text", None) or ""
                 if text:
                     finish_reason = None
                     if getattr(chunk, "candidates", None):
-                        finish_reason = str(chunk.candidates[0].finish_reason)
+                        finish_reason = str(chunk.candidates[0].finish_reason)  # type: ignore
                     yield StreamChunk(
                         id=chunk_id,
                         model=request.model,

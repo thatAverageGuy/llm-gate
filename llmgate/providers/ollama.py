@@ -68,7 +68,8 @@ class OllamaProvider(BaseProvider):
         model = self._strip_prefix(request.model)
         # Ollama messages use an images field for multimodal — use vision helper
         messages = [
-            vision.to_ollama_message(m.role, m.content) for m in request.messages
+            vision.to_ollama_message(m.role, m.content)  # type: ignore[arg-type]
+            for m in request.messages  # type: ignore
         ]
 
         params: dict[str, Any] = {
@@ -136,7 +137,9 @@ class OllamaProvider(BaseProvider):
         if response_format is not None and text:
             from llmgate.structured import validate_parsed  # noqa: PLC0415
 
-            parsed = validate_parsed(text, response_format)
+            parsed = validate_parsed(
+                text if isinstance(text, str) else None, response_format
+            )
         return CompletionResponse(
             id=f"ollama-{id(raw)}",
             model=model,
@@ -194,7 +197,9 @@ class OllamaProvider(BaseProvider):
             for chunk in self._client.chat(stream=True, **params):
                 delta = getattr(chunk.message, "content", None)
                 if delta:
-                    yield StreamChunk(delta=delta)
+                    yield StreamChunk(
+                        id="chunk", model=request.model, provider=self.name, delta=delta
+                    )
         except Exception as exc:
             raise ProviderAPIError(
                 f"Ollama stream error: {exc}",
@@ -207,7 +212,9 @@ class OllamaProvider(BaseProvider):
             async for chunk in await self._async_client.chat(stream=True, **params):
                 delta = getattr(chunk.message, "content", None)
                 if delta:
-                    yield StreamChunk(delta=delta)
+                    yield StreamChunk(
+                        id="chunk", model=request.model, provider=self.name, delta=delta
+                    )
         except Exception as exc:
             raise ProviderAPIError(
                 f"Ollama async stream error: {exc}",

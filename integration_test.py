@@ -27,7 +27,7 @@ MESSAGES = [
 
 TESTS = [
     ("Groq", "groq/llama-3.1-8b-instant"),
-    ("Anthropic", "claude-3-haiku-20240307"),
+    ("Anthropic", "claude-haiku-4-5-20251001"),
     ("Gemini", "gemini-2.5-flash-lite"),
 ]
 
@@ -63,7 +63,7 @@ print(f"{'=' * 55}\n")
 
 STREAM_TESTS = [
     ("Groq (stream)", "groq/llama-3.1-8b-instant"),
-    ("Anthropic (stream)", "claude-3-haiku-20240307"),
+    ("Anthropic (stream)", "claude-haiku-4-5-20251001"),
     ("Gemini (stream)", "gemini-2.5-flash-lite"),
 ]
 
@@ -114,7 +114,7 @@ TOOLS = [
 
 TOOL_TESTS = [
     ("Groq (tools)", "groq/llama-3.1-8b-instant"),
-    ("Anthropic (tools)", "claude-3-haiku-20240307"),
+    ("Anthropic (tools)", "claude-haiku-4-5-20251001"),
     ("Gemini (tools)", "gemini-2.5-flash-lite"),
 ]
 
@@ -223,7 +223,7 @@ print(f"{'=' * 55}\n")
 embed_passed = embed_failed = 0
 for name, model in [
     ("OpenAI Embed", "text-embedding-3-small"),
-    ("Gemini Embed", "gemini/text-embedding-004"),
+    ("Gemini Embed", "gemini/gemini-embedding-2"),
 ]:
     print(f"[{name}] testing embedding")
     try:
@@ -240,4 +240,6 @@ print(f"{'=' * 55}")
 print(f"  Embedding: {embed_passed} passed, {embed_failed} failed")
 print(f"{'=' * 55}\n")
 
-sys.exit(1 if (failed or stream_failed or tools_failed or mw_failed or embed_failed) else 0)
+sys.exit(
+    1 if (failed or stream_failed or tools_failed or mw_failed or embed_failed) else 0
+)

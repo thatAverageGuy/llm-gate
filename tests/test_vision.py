@@ -32,7 +32,7 @@ PNG_B64 = base64.b64encode(PNG_BYTES).decode()
 
 
 def _make_image_url_part(url: str, detail: str | None = None) -> ImagePart:
-    return ImagePart(type="image_url", image_url=ImageURL(url=url, detail=detail))
+    return ImagePart(type="image_url", image_url=ImageURL(url=url, detail=detail))  # type: ignore
 
 
 def _make_image_bytes_part(data: str = JPEG_B64, mime: str = "image/jpeg") -> ImagePart:

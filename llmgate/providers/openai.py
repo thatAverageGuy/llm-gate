@@ -144,7 +144,12 @@ class OpenAIProvider(BaseProvider):
         if response_format is not None and choices:
             from llmgate.structured import validate_parsed  # noqa: PLC0415
 
-            parsed = validate_parsed(choices[0].message.content, response_format)
+            parsed = validate_parsed(
+                choices[0].message.content
+                if isinstance(choices[0].message.content, str)
+                else None,
+                response_format,
+            )
         return CompletionResponse(
             id=raw.id,
             model=model,
