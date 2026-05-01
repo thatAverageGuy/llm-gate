@@ -1,6 +1,6 @@
 [project]
 name = "llmgate"
-version = "0.8.2"
+version = "0.8.3"
 description = "Lightweight, provider-agnostic LLM calling library — OpenAI, Gemini, Anthropic, Groq, Mistral, Cohere, Azure, Bedrock, Ollama"
 readme = "README.md"
 license = { file = "LICENSE" }

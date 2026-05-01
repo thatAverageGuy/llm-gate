@@ -118,7 +118,7 @@ class GeminiProvider(BaseProvider):
                                 }
                             }
                         )
-                contents.append({"role": "model", "assistant_parts": assistant_parts})
+                contents.append({"role": "model", "parts": assistant_parts})
                 continue
 
             if msg.role == "tool":

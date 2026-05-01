@@ -4,7 +4,16 @@ All notable changes to llmgate are documented here.
 
 ---
 
+## v0.8.3 — 2026-05-01
+
+### 🐛 Bug Fix — Gemini Multi-Turn Conversations
+
+- **Fixed broken multi-turn conversations on Gemini** — Assistant turns were being serialised with an invalid `"assistant_parts"` key instead of the correct `"parts"` key required by the `google-genai` SDK. This caused all prior model text and tool calls to be silently dropped from the conversation context, making every Gemini call effectively single-turn regardless of the history passed in.
+
+---
+
 ## v0.8.1 — 2026-04-30
+
 
 ### ✨ Added — Embedding Middleware
 
