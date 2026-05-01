@@ -587,6 +587,7 @@ These features are shipped ✅ or planned 🗓️:
 | **Streaming Fallback** — seamless mid-stream recovery (`stream_fallback_mode`) | ✅ v0.8 |
 | **Embedding Middleware** — fully supported middleware chain for embeddings | ✅ v0.8.1 |
 | **Strict Dependencies & Fixes** — google-genai 1.74.0 batching fix & exact dependency pinning | ✅ v0.8.2 |
+| **Gemini multi-turn fix** — corrected `assistant_parts` → `parts` key so conversation history is sent correctly | ✅ v0.8.3 |
 | **Automatic tool-call loop** — orchestrate multi-step tool use | 🗓️ planned |
 | **Token counting** — local tokenisation before sending | 🗓️ planned |
 | **Prompt templates** — reusable, parameterised prompt builders | 🗓️ planned |

@@ -88,7 +88,7 @@ from llmgate.types import (
     ToolDefinition,
 )
 
-__version__ = "0.8.2"
+__version__ = "0.8.3"
 __all__ = [
     # Completion API
     "completion",
